@@ -197,14 +197,14 @@ This is the intended destination, not a requirement to create every file immedia
 state, add one assistant node backed by Groq, and test the graph before adding
 research tools.
 
-The primary product is a Telegram channel management agent. Its first content
-workflow generates a daily draft containing AI news and verified, still-open
-opportunities. Each draft can contain up to two AI news items and up
-to three verified, still-open opportunities, including opportunities open to
-applicants from Ethiopia when available. Each opportunity includes eligibility,
-application requirements, deadline status, and an official source URL. Drafts
-are not published automatically until review and publishing workflows are
-implemented.
+The primary product is a Telegram channel management agent. Its content is
+split into independent AI news and opportunities workflows, then combined into
+a daily draft. The news workflow produces up to two sourced AI news items. The
+opportunities workflow produces up to three verified, still-open opportunities,
+including opportunities open to applicants from Ethiopia when available. Each
+opportunity includes eligibility, application requirements, deadline status,
+and an official source URL. Drafts are not published automatically until review
+and publishing workflows are implemented.
 
 ### Phase 2 — LangGraph Agent
 - [x] Understand LangGraph fundamentals.
