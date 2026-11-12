@@ -1,19 +1,13 @@
 
-import os
-
-from dotenv import load_dotenv
 from groq import Groq
 
-load_dotenv()
-
-api_key = os.getenv("GROQ_API_KEY")
-
-if not api_key:
-    raise ValueError("GROQ_API_KEY not found in .env")
-
-client = Groq(api_key=api_key)
+from src.config import get_required_setting
 
 MODEL = "openai/gpt-oss-20b"
+
+
+def _get_client() -> Groq:
+    return Groq(api_key=get_required_setting("GROQ_API_KEY"))
 
 
 def generate_response(
@@ -23,7 +17,7 @@ def generate_response(
 ) -> str:
     """Generate a response using Groq."""
 
-    response = client.chat.completions.create(
+    response = _get_client().chat.completions.create(
         model=MODEL,
         messages=[
             {"role": "system", "content": system_prompt},

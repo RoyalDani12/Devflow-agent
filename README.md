@@ -186,11 +186,16 @@ This is the intended destination, not a requirement to create every file immedia
 - [x] Connect Telegram Bot API.
 - [x] Connect Groq API.
 - [x] Test available Groq models.
-- [ ] Connect normal Telegram messages to Groq.
-- [ ] Add error handling.
-- [ ] Separate configuration from application logic.
+- [x] Connect normal Telegram messages to Groq.
+- [x] Add error handling.
+- [x] Separate configuration from application logic.
+- [x] Add focused tests for Telegram message handling.
 
 **Milestone:** A working Telegram AI assistant.
+
+**Next build step:** Phase 2 starts with a small LangGraph workflow: define agent
+state, add one assistant node backed by Groq, and test the graph before adding
+research tools.
 
 ### Phase 2 — LangGraph Agent
 - [ ] Understand LangGraph fundamentals.
