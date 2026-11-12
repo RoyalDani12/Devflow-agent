@@ -197,6 +197,11 @@ This is the intended destination, not a requirement to create every file immedia
 state, add one assistant node backed by Groq, and test the graph before adding
 research tools.
 
+The primary product is a Telegram channel management agent. Its first content
+workflow generates a daily draft containing AI news, a developer tip, an
+interview question, and an opportunity. Drafts are not published automatically
+until review and publishing workflows are implemented.
+
 ### Phase 2 — LangGraph Agent
 - [x] Understand LangGraph fundamentals.
 - [x] Implement agent state.
