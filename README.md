@@ -198,13 +198,13 @@ state, add one assistant node backed by Groq, and test the graph before adding
 research tools.
 
 ### Phase 2 — LangGraph Agent
-- [ ] Understand LangGraph fundamentals.
-- [ ] Implement agent state.
-- [ ] Create the first agent node.
-- [ ] Connect nodes using edges.
+- [x] Understand LangGraph fundamentals.
+- [x] Implement agent state.
+- [x] Create the first agent node.
+- [x] Connect nodes using edges.
 - [ ] Add conditional routing.
-- [ ] Integrate the Groq model.
-- [ ] Test agent execution.
+- [x] Integrate the Groq model.
+- [x] Test agent execution.
 
 **Milestone:** DevFlow AI can execute a structured AI workflow.
 
