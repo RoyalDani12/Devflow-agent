@@ -1,3 +1,4 @@
+from datetime import date
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -9,15 +10,41 @@ class DailyContentState(TypedDict, total=False):
     draft: str
 
 
-DAILY_CONTENT_PROMPT = """Create a daily Telegram channel content package for
-developers. Return exactly four clearly labelled sections:
+DAILY_CONTENT_PROMPT = f"""Create a daily Telegram channel content package for
+developers. The current date is {date.today().isoformat()}. Return exactly two
+clearly labelled sections:
 
-1. AI NEWS - one recent AI or technology story. Include its source.
-2. DEVELOPER TIP - one practical programming or software engineering tip.
-3. INTERVIEW QUESTION - one technical interview question with a concise answer.
-4. OPPORTUNITY - one hackathon, fellowship, scholarship, internship, or job.
-   Include the deadline and official source when known. If you cannot verify
-   an opportunity, say so instead of inventing details.
+1. AI NEWS - up to two recent AI or technology stories. Include the source
+  for each story. If no story can be verified, say so.
+2. OPPORTUNITIES - include up to three different hackathons, fellowships,
+  scholarships, internships, or jobs. Do not invent opportunities if fewer
+  than three can be verified.
+
+For every opportunity, include:
+- Name and type.
+- Confirm it is suitable for freshers, students, or early-career applicants.
+- State clearly that no prior professional experience is required, or explain
+ the minimum experience if experience is required.
+- Who is eligible, including whether applicants from Ethiopia are eligible.
+- Requirements to enroll or apply.
+- Exact deadline with timezone when available.
+- A direct official source or application URL.
+- Deadline status as of {date.today().isoformat()}.
+
+Opportunity verification rules:
+- Use current, real information from official sources, not memory.
+- Check the official page for each opportunity before including it.
+- Read the deadline from the official page and compare its date and timezone
+ with today's date ({date.today().isoformat()}).
+- Exclude opportunities with deadlines in the past, even if they appear in
+ old search results or cached pages.
+- Include opportunities with future deadlines only when the official page
+ confirms applications are open.
+- Include at least one opportunity open to applicants from Ethiopia when a
+ verified opportunity is available. If none can be verified, say so clearly.
+- Treat a missing, unclear, or conflicting deadline as unverified and exclude
+ it unless the official source clearly confirms that applications are open.
+- Never invent a deadline, requirement, eligibility rule, URL, or source.
 
 Use concise, Telegram-ready formatting. Do not claim to have published
 anything. This is a draft for human review."""
