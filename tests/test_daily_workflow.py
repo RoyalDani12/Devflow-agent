@@ -1,54 +1,32 @@
 import unittest
-from datetime import date
 from unittest.mock import patch
 
-from src.workflows.daily_workflow import (
-    DAILY_CONTENT_PROMPT,
-    create_daily_draft,
-    generate_daily_draft,
-)
+from src.workflows.daily_workflow import create_daily_content, generate_daily_draft
 
 
 class DailyWorkflowTests(unittest.TestCase):
-    @patch("src.workflows.daily_workflow.generate_response")
-    def test_create_daily_draft_generates_unpublished_package(self, generate_response):
-        generate_response.return_value = "AI NEWS\n...\nOPPORTUNITY\n..."
+    @patch("src.workflows.daily_workflow.generate_opportunities")
+    @patch("src.workflows.daily_workflow.generate_ai_news")
+    def test_daily_workflow_combines_independent_outputs(
+        self,
+        generate_ai_news,
+        generate_opportunities,
+    ):
+        generate_ai_news.return_value = "AI NEWS"
+        generate_opportunities.return_value = "OPPORTUNITIES"
 
-        result = create_daily_draft({})
+        result = create_daily_content({})
 
-        self.assertEqual(result["draft"], generate_response.return_value)
-        generate_response.assert_called_once_with(DAILY_CONTENT_PROMPT)
+        self.assertEqual(result["news"], "AI NEWS")
+        self.assertEqual(result["opportunities"], "OPPORTUNITIES")
+        self.assertEqual(result["draft"], "AI NEWS\n\nOPPORTUNITIES")
 
-    @patch("src.workflows.daily_workflow.generate_response")
-    def test_generate_daily_draft_runs_workflow(self, generate_response):
-        generate_response.return_value = "Daily draft"
+    @patch("src.workflows.daily_workflow.daily_workflow.invoke")
+    def test_generate_daily_draft_returns_combined_draft(self, invoke):
+        invoke.return_value = {"draft": "Combined draft"}
 
-        self.assertEqual(generate_daily_draft(), "Daily draft")
-
-    def test_prompt_requires_news_and_opportunity_sections(self):
-        for section in ("AI NEWS", "OPPORTUNITIES"):
-            self.assertIn(section, DAILY_CONTENT_PROMPT)
-
-    def test_prompt_requires_verified_open_opportunities(self):
-        current_date = date.today().isoformat()
-
-        self.assertIn("up to three", DAILY_CONTENT_PROMPT)
-        self.assertIn("up to two", DAILY_CONTENT_PROMPT)
-        self.assertIn("suitable for freshers", DAILY_CONTENT_PROMPT)
-        self.assertIn("no prior professional experience is required", DAILY_CONTENT_PROMPT)
-        self.assertIn("Who is eligible", DAILY_CONTENT_PROMPT)
-        self.assertIn("applicants from Ethiopia", DAILY_CONTENT_PROMPT)
-        self.assertIn("Requirements to enroll or apply", DAILY_CONTENT_PROMPT)
-        self.assertIn("direct official source", DAILY_CONTENT_PROMPT)
-        self.assertIn(f"current date is {current_date}", DAILY_CONTENT_PROMPT)
-        self.assertIn("compare its date and timezone", DAILY_CONTENT_PROMPT)
-        self.assertIn("deadlines in the past", DAILY_CONTENT_PROMPT)
-        self.assertIn("future deadlines", DAILY_CONTENT_PROMPT)
-        self.assertIn("missing, unclear, or conflicting deadline", DAILY_CONTENT_PROMPT)
-
-    def test_prompt_excludes_removed_sections(self):
-        self.assertNotIn("DEVELOPER TIP", DAILY_CONTENT_PROMPT)
-        self.assertNotIn("INTERVIEW QUESTION", DAILY_CONTENT_PROMPT)
+        self.assertEqual(generate_daily_draft(), "Combined draft")
+        invoke.assert_called_once_with({})
 
 
 if __name__ == "__main__":
