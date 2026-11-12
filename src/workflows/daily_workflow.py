@@ -2,6 +2,7 @@ from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from src.tools.media_service import extract_media_image
 from src.workflows.ai_news_workflow import generate_ai_news
 from src.workflows.opportunities_workflow import generate_opportunities
 
@@ -9,17 +10,21 @@ from src.workflows.opportunities_workflow import generate_opportunities
 class DailyContentState(TypedDict, total=False):
     news: str
     opportunities: str
+    image_url: str
     draft: str
 
 
 def create_daily_content(state: DailyContentState) -> DailyContentState:
-    """Combine the independent news and opportunities outputs."""
+    """Combine the independent news and opportunities outputs with visual media."""
     news = generate_ai_news()
     opportunities = generate_opportunities()
+    combined_text = f"{news}\n\n{opportunities}".strip()
+    image_url = extract_media_image(combined_text, fallback_category="daily")
     return {
         "news": news,
         "opportunities": opportunities,
-        "draft": f"{news}\n\n{opportunities}",
+        "image_url": image_url,
+        "draft": combined_text,
     }
 
 
@@ -39,3 +44,11 @@ def generate_daily_draft() -> str:
     """Generate the combined daily draft without publishing it."""
     result = daily_workflow.invoke({})
     return result.get("draft", "")
+
+
+def generate_daily_draft_payload() -> dict[str, str]:
+    """Generate the daily draft text along with the best visual image."""
+    result = daily_workflow.invoke({})
+    draft = result.get("draft", "")
+    img = result.get("image_url") or extract_media_image(draft, "daily")
+    return {"text": draft, "image_url": img}

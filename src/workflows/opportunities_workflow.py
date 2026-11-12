@@ -13,47 +13,37 @@ class OpportunitiesState(TypedDict, total=False):
     opportunities: str
 
 
-OPPORTUNITIES_PROMPT = f"""Create a Telegram-ready opportunities section for
-developers. The current date is {date.today().isoformat()}. Include up to three
-different hackathons, fellowships, scholarships, internships, or jobs. Do not
-invent opportunities if fewer can be verified.
+OPPORTUNITIES_PROMPT = f"""You are DevFlow's opportunity research scout. Current date: {date.today().isoformat()}.
+Present up to three verified developer opportunities (hackathons, fellowships, scholarships, grants).
 
-Use only the verified page evidence supplied below. For every opportunity:
-- Confirm it is suitable for freshers, students, or early-career applicants.
-- State whether no prior professional experience is required, or explain the
-  minimum experience if experience is required.
-- Check whether applicants from Ethiopia are eligible.
-- Search globally: the opportunity may be hosted anywhere in the world. Do not
-  require it to be located in Ethiopia.
-- Include eligibility and requirements to enroll or apply.
-- Include the exact deadline and timezone when available.
-- Include a direct official source or application URL.
-- State the deadline status as of {date.today().isoformat()}.
+CRITICAL FORMATTING & STYLE RULES:
+- Never output meta text like 'Telegram-ready...', 'Here are opportunities...', or prompt instructions.
+- Start directly with:
+🎯 **Top Developer Opportunities & Fellowships**
+- Absolutely NO markdown tables (|---|---|), ASCII table borders, or multiple consecutive asterisks (***).
+- Format each verified opportunity as a sleek Telegram card using clean emoji bullets:
 
-Verification rules:
-- Check the official page for every opportunity before including it.
-- Search globally across organizations, countries, and regions; verify
-  nationality and location restrictions on the official page.
-- Compare each deadline date and timezone with today's date.
-- Exclude every past deadline, old search result, cached result, and closed
-  rolling application.
-- Include future-deadline opportunities only when the official page confirms
-  applications are open.
-- Include an Ethiopia-eligible opportunity when one is verified.
-- Treat missing, unclear, or conflicting deadlines as unverified and exclude
-  them unless the official source clearly confirms applications are open.
-- Never invent requirements, eligibility, deadlines, URLs, or sources.
+🌟 **[Program or Hackathon Name]**
+🏢 **Host:** [Organization / Platform]
+🎓 **Eligibility:** [Suitable for students, freshers, or early-career applicants; state whether applicants from Ethiopia are eligible]
+💰 **Funding / Prize:** [Fully Funded / Cash Prize / Stipend / Free]
+📅 **Deadline:** [Month Day, Year - Status as of today]
+🔗 **Apply Link:** [Direct Application URL]
+💡 **Overview:** [1-2 sentences on what developers gain]
 
-If the evidence is empty or no opportunity can be verified, say so clearly. Do not include AI news,
-developer tips, interview questions, or claims that anything was published."""
+Verification Rules:
+- Search globally: the opportunity may be hosted anywhere in the world.
+- Compare each deadline date and timezone with today's date ({date.today().isoformat()}).
+- Exclude every past deadline, expired opportunity, and closed rolling call.
+- Include future-deadline opportunities only when confirmed open.
+- Never invent deadlines, requirements, or links.
+If evidence is insufficient, state: "🎯 No verified active opportunities found today."
+"""
 
 
 def create_opportunities(state: OpportunitiesState) -> OpportunitiesState:
     """Generate a separate, reviewable opportunities section."""
-    prompt = (
-        f"{OPPORTUNITIES_PROMPT}\n\nVERIFIED PAGE EVIDENCE:\n"
-        f"{state.get('evidence', '')}"
-    )
+    prompt = f"{OPPORTUNITIES_PROMPT}\n\nVERIFIED PAGE EVIDENCE:\n{state.get('evidence', '')}"
     return {"opportunities": generate_response(prompt)}
 
 

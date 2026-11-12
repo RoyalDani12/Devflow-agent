@@ -176,5 +176,6 @@ def collect_page_evidence(queries: list[str], result_limit: int = 4, page_limit:
         if not page_text:
             continue
 
-        evidence.append(f"SOURCE URL: {result.url}\nSEARCH TITLE: {result.title}\nPAGE CONTENT: {page_text}")
+        img_line = f"\nIMAGE URL: {result.image_url}" if getattr(result, "image_url", None) else ""
+        evidence.append(f"SOURCE URL: {result.url}{img_line}\nSEARCH TITLE: {result.title}\nPAGE CONTENT: {page_text}")
     return "\n\n--- CANDIDATE SOURCE ---\n\n".join(evidence)[:MAX_EVIDENCE_CHARS]

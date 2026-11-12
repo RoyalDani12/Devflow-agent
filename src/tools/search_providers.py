@@ -20,14 +20,26 @@ class SearchResult:
     title: str
     url: str
     snippet: str
+    image_url: str | None = None
+
+
+def _extract_rss_image(item_node) -> str | None:
+    for child in item_node:
+        tag_lower = child.tag.lower()
+        if "enclosure" in tag_lower and child.attrib.get("type", "").startswith("image"):
+            return child.attrib.get("url")
+        if "content" in tag_lower and ("image" in child.attrib.get("medium", "") or "image" in child.attrib.get("type", "")):
+            return child.attrib.get("url")
+        if "thumbnail" in tag_lower:
+            return child.attrib.get("url")
+    return None
 
 
 def fetch_devpost_hackathons(limit: int = 6) -> list[SearchResult]:
-    """Fetch live hackathons from official Devpost API, prioritizing unseen items."""
+    """Fetch live hackathons from official Devpost API, prioritizing unseen items with thumbnails."""
     seen_urls = get_seen_opportunity_urls()
     url = "https://devpost.com/api/hackathons?challenge_type[]=online&status[]=upcoming&status[]=open"
-    results = []
-    unseen_results = []
+    results, unseen_results = [], []
     try:
         req = Request(url, headers={"User-Agent": USER_AGENT})
         with urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
@@ -37,16 +49,16 @@ def fetch_devpost_hackathons(limit: int = 6) -> list[SearchResult]:
             url_link = h.get("url") or ""
             prize = re.sub(r"<[^>]+>", "", str(h.get("prize_amount", ""))).strip()
             themes = ", ".join(t.get("name", "") for t in h.get("themes", []))
+            thumb = h.get("thumbnail_url") or h.get("large_promo_image_url")
+            if thumb and thumb.startswith("//"):
+                thumb = f"https:{thumb}"
             snippet = (
                 f"Devpost Online Hackathon. Prize: {prize}. Themes: {themes}. "
                 f"Status: {h.get('open_state')}. Time left: {h.get('time_left_to_submission')}."
             )
             if title and url_link:
-                item = SearchResult(title, url_link, snippet)
-                if url_link in seen_urls:
-                    results.append(item)
-                else:
-                    unseen_results.append(item)
+                item = SearchResult(title, url_link, snippet, image_url=thumb)
+                (results if url_link in seen_urls else unseen_results).append(item)
     except (OSError, ValueError):
         pass
     return (unseen_results + results)[:limit]
@@ -55,22 +67,19 @@ def fetch_devpost_hackathons(limit: int = 6) -> list[SearchResult]:
 def fetch_ethiopia_scholarships(limit: int = 8) -> list[SearchResult]:
     """Fetch active scholarships and fellowships open to Ethiopians, rotating unseen items."""
     seen_urls = get_seen_opportunity_urls()
-    results = []
-    unseen_results = []
+    results, unseen_results = [], []
     seen_in_batch = set()
 
     sources = [
         ("https://scholarship.et/scholarships", r'href=[\"\'](/scholarships/([^\"\']+))[\"\'][^>]*>(.*?)</a>', "https://scholarship.et"),
         ("https://www.ethioopportunity.com/", r'href=[\"\'](/detail/([^\"\']+))[\"\'][^>]*>(.*?)</a>', "https://www.ethioopportunity.com"),
     ]
-
     for source_url, pattern, base_url in sources:
         try:
             req = Request(source_url, headers={"User-Agent": USER_AGENT})
             with urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
                 html = resp.read().decode("utf-8", errors="replace")
-            links = re.findall(pattern, html, re.DOTALL)
-            for path, slug, text in links:
+            for path, slug, text in re.findall(pattern, html, re.DOTALL):
                 full_url = f"{base_url}{path}"
                 clean_title = re.sub(r"<[^>]+>", "", text).strip()
                 slug_title = slug.replace("_", " ").rsplit("-", 1)[0].replace("-", " ").title()
@@ -79,21 +88,16 @@ def fetch_ethiopia_scholarships(limit: int = 8) -> list[SearchResult]:
                     seen_in_batch.add(full_url)
                     snippet = f"Verified fellowship / scholarship for Ethiopian applicants: {title}."
                     item = SearchResult(title, full_url, snippet)
-                    if full_url in seen_urls:
-                        results.append(item)
-                    else:
-                        unseen_results.append(item)
+                    (results if full_url in seen_urls else unseen_results).append(item)
         except (OSError, ValueError):
             continue
-
     return (unseen_results + results)[:limit]
 
 
 def fetch_opportunity_feeds(limit: int = 8) -> list[SearchResult]:
     """Fetch opportunities from OpportunitiesForAfricans, Scholars4Dev, and OpportunityDesk."""
     seen_urls = get_seen_opportunity_urls()
-    results = []
-    unseen_results = []
+    results, unseen_results = [], []
     feeds = [
         ("https://www.opportunitiesforafricans.com/feed/", "Opportunities for Africans"),
         ("https://www.scholars4dev.com/feed/", "Scholars4Dev"),
@@ -109,12 +113,10 @@ def fetch_opportunity_feeds(limit: int = 8) -> list[SearchResult]:
                 url_link = it.findtext("link", default="").strip()
                 raw_desc = it.findtext("description", default="")
                 snippet = re.sub(r"<[^>]+>", "", raw_desc).strip()
+                img = _extract_rss_image(it)
                 if title and url_link:
-                    item = SearchResult(title, url_link, f"[{label}] {snippet[:180]}")
-                    if url_link in seen_urls:
-                        results.append(item)
-                    else:
-                        unseen_results.append(item)
+                    item = SearchResult(title, url_link, f"[{label}] {snippet[:180]}", image_url=img)
+                    (results if url_link in seen_urls else unseen_results).append(item)
         except (OSError, ValueError, ElementTree.ParseError):
             continue
     return (unseen_results + results)[:limit]
@@ -123,26 +125,47 @@ def fetch_opportunity_feeds(limit: int = 8) -> list[SearchResult]:
 fetch_opportunitydesk = fetch_opportunity_feeds
 
 
-def fetch_techcrunch_ai(limit: int = 5) -> list[SearchResult]:
-    """Fetch latest AI product releases and research from TechCrunch AI feed."""
+def fetch_tech_news_feeds(limit: int = 6) -> list[SearchResult]:
+    """Fetch latest AI product releases and research from TechCrunch AI and MIT News AI."""
     results = []
+    feeds = [
+        ("https://techcrunch.com/category/artificial-intelligence/feed/", "TechCrunch AI"),
+        ("https://news.mit.edu/rss/topic/artificial-intelligence2", "MIT AI News"),
+    ]
+    for feed_url, label in feeds:
+        try:
+            req = Request(feed_url, headers={"User-Agent": USER_AGENT})
+            with urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
+                root = ElementTree.fromstring(resp.read())
+            for it in root.findall(".//item")[:limit]:
+                title = it.findtext("title", default="").strip()
+                url_link = it.findtext("link", default="").strip()
+                raw_desc = it.findtext("description", default="")
+                snippet = re.sub(r"<[^>]+>", "", raw_desc).strip()
+                img = _extract_rss_image(it)
+                if title and url_link:
+                    results.append(SearchResult(f"[{label}] {title}", url_link, snippet, image_url=img))
+        except (OSError, ValueError, ElementTree.ParseError):
+            continue
+
+    # Hacker News top developer story fallback
     try:
-        req = Request(
-            "https://techcrunch.com/category/artificial-intelligence/feed/",
-            headers={"User-Agent": USER_AGENT},
-        )
+        req = Request("https://hacker-news.firebaseio.com/v0/topstories.json", headers={"User-Agent": USER_AGENT})
         with urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
-            root = ElementTree.fromstring(resp.read())
-        for it in root.findall(".//item")[:limit]:
-            title = it.findtext("title", default="").strip()
-            url_link = it.findtext("link", default="").strip()
-            raw_desc = it.findtext("description", default="")
-            snippet = re.sub(r"<[^>]+>", "", raw_desc).strip()
-            if title and url_link:
-                results.append(SearchResult(title, url_link, snippet))
-    except (OSError, ValueError, ElementTree.ParseError):
+            ids = json.loads(resp.read().decode("utf-8"))[:3]
+        for sid in ids:
+            item_req = Request(f"https://hacker-news.firebaseio.com/v0/item/{sid}.json", headers={"User-Agent": USER_AGENT})
+            with urlopen(item_req, timeout=DEFAULT_TIMEOUT_SECONDS) as resp2:
+                data = json.loads(resp2.read().decode("utf-8"))
+            if data and data.get("title") and data.get("url"):
+                results.append(SearchResult(f"[Hacker News] {data.get('title')}", data.get("url"), "Top trending developer story."))
+    except (OSError, ValueError):
         pass
-    return results
+
+    return results[:limit]
+
+
+fetch_techcrunch_ai = fetch_tech_news_feeds
 
 
 def search_tavily(query: str, api_key: str, limit: int = 5) -> list[SearchResult]:

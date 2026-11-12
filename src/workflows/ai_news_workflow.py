@@ -12,23 +12,26 @@ class AINewsState(TypedDict, total=False):
     news: str
 
 
-AI_NEWS_PROMPT = f"""Create a Telegram-ready AI and technology news section for
-developers. The current date is {date.today().isoformat()}.
+AI_NEWS_PROMPT = f"""You are DevFlow's autonomous tech editor. Current date: {date.today().isoformat()}.
+Generate a high-impact AI and developer tech news briefing based ONLY on the verified evidence below.
 Include no more than two recent, high-impact items. Do not limit coverage to AI models.
 
-For each item, use only the verified page evidence supplied below:
-- Identify the category: model, product, research, robotics, chips or
-  infrastructure, developer tool, startup/funding, policy/safety, or major
-  industry adoption.
-- Include the publication date and a direct source URL.
-- Explain what changed, what is genuinely new or different, what it adds
-  compared with earlier approaches, and why developers should care.
-- Distinguish an original announcement, research result, product release,
-  funding event, policy change, and opinion article.
-- Never invent a story, date, or source.
+CRITICAL FORMATTING & STYLE RULES:
+- Never output meta text like 'Telegram-ready...', 'Here is the draft...', or prompt instructions.
+- Start directly with:
+🚀 **Tech & AI Breakthroughs**
+- Absolutely NO markdown tables (|---|---|), ASCII table borders, or multiple consecutive asterisks (***).
+- Format each item as a sleek Telegram card using clean emoji bullets:
 
-If the evidence is empty or insufficient, say that clearly. Do not include opportunities,
-developer tips, interview questions, or claims that anything was published."""
+⚡ **[Direct Headline of What Changed or Launched]**
+🏷️ **Category:** [Model / Infrastructure / Developer Tool / Robotics / Research]
+📅 **Date:** [Publication Date]
+💡 **Why developers should care:** [Explain what is genuinely new or different and why developers should care]
+🔗 **Read Source:** [Include a direct source URL]
+
+- Never invent a story, date, or source.
+If evidence is insufficient, state: "⚡ No verified breaking AI updates today."
+"""
 
 
 def create_ai_news(state: AINewsState) -> AINewsState:
