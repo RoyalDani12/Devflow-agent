@@ -13,7 +13,7 @@ def _get_client() -> Groq:
 def generate_response(
     prompt: str,
     system_prompt: str = "You are DevFlow AI, a helpful assistant for developers.",
-    max_tokens: int = 1024,
+    max_tokens: int = 4096,
 ) -> str:
     """Generate a response using Groq."""
 

@@ -20,7 +20,9 @@ class ContentWorkflowTests(unittest.TestCase):
         generate_response.return_value = "Two verified stories"
 
         self.assertEqual(create_ai_news({})["news"], "Two verified stories")
-        generate_response.assert_called_once_with(AI_NEWS_PROMPT)
+        prompt = generate_response.call_args.args[0]
+        self.assertIn(AI_NEWS_PROMPT, prompt)
+        self.assertIn("VERIFIED PAGE EVIDENCE:", prompt)
 
     @patch("src.workflows.opportunities_workflow.generate_response")
     def test_opportunities_workflow_returns_opportunities(self, generate_response):
@@ -30,11 +32,16 @@ class ContentWorkflowTests(unittest.TestCase):
             create_opportunities({})["opportunities"],
             "Verified opportunities",
         )
-        generate_response.assert_called_once_with(OPPORTUNITIES_PROMPT)
+        prompt = generate_response.call_args.args[0]
+        self.assertIn(OPPORTUNITIES_PROMPT, prompt)
+        self.assertIn("VERIFIED PAGE EVIDENCE:", prompt)
 
     def test_news_prompt_has_separate_limits_and_sources(self):
         self.assertIn("no more than two", AI_NEWS_PROMPT)
         self.assertIn("direct source URL", AI_NEWS_PROMPT)
+        self.assertIn("Do not limit coverage to AI models", AI_NEWS_PROMPT)
+        self.assertIn("what is genuinely new or different", AI_NEWS_PROMPT)
+        self.assertIn("why developers should care", AI_NEWS_PROMPT)
         self.assertIn(date.today().isoformat(), AI_NEWS_PROMPT)
         self.assertNotIn("OPPORTUNIT", AI_NEWS_PROMPT)
 
@@ -42,6 +49,8 @@ class ContentWorkflowTests(unittest.TestCase):
         self.assertIn("up to three", OPPORTUNITIES_PROMPT)
         self.assertIn("freshers", OPPORTUNITIES_PROMPT)
         self.assertIn("applicants from Ethiopia", OPPORTUNITIES_PROMPT)
+        self.assertIn("Search globally", OPPORTUNITIES_PROMPT)
+        self.assertIn("may be hosted anywhere in the world", OPPORTUNITIES_PROMPT)
         self.assertIn("Compare each deadline date and timezone", OPPORTUNITIES_PROMPT)
         self.assertIn("Exclude every past deadline", OPPORTUNITIES_PROMPT)
         self.assertNotIn("AI NEWS -", OPPORTUNITIES_PROMPT)
