@@ -1,12 +1,13 @@
 from datetime import date
-import re
 from langchain_core.tools import tool
 
 from src.database.memory import (
     get_recently_published,
     record_opportunity,
 )
-from src.tools.web_research import _fetch_devpost_hackathons, fetch_page, search_web
+from src.tools.opportunity_verifier import OpportunityCandidate, verify_opportunity
+from src.tools.search_providers import fetch_devpost_hackathons
+from src.tools.web_research import fetch_page, search_web
 
 
 @tool
@@ -36,7 +37,7 @@ def fetch_page_content_tool(url: str) -> str:
     Use this to verify deadlines, eligibility, and requirements.
     """
     if "devpost.com" in url:
-        for item in _fetch_devpost_hackathons(limit=15):
+        for item in fetch_devpost_hackathons(limit=15):
             slug_match = any(part in url for part in item.url.replace("https://", "").split("."))
             if slug_match or item.url in url or url in item.url:
                 return (
@@ -75,6 +76,36 @@ def check_channel_memory_tool(days: int = 30) -> str:
 
 
 @tool
+def verify_candidate_opportunity_tool(
+    name: str,
+    official_url: str,
+    deadline_iso: str,
+    fresher_friendly: bool = True,
+    ethiopia_eligible: bool = True,
+    requirements: str = "Standard application",
+) -> str:
+    """Validate an opportunity candidate using deterministic rules."""
+    try:
+        d = date.fromisoformat(deadline_iso)
+    except ValueError:
+        d = None
+
+    candidate = OpportunityCandidate(
+        name=name,
+        official_url=official_url,
+        deadline=d,
+        is_open=True,
+        fresher_friendly=fresher_friendly,
+        ethiopia_eligible=ethiopia_eligible,
+        requirements=requirements,
+    )
+    result = verify_opportunity(candidate)
+    if result.verified:
+        return f"VERIFIED: '{name}' meets all criteria (future deadline, open, Ethiopian eligible)."
+    return f"REJECTED: '{name}' failed verification reasons: {', '.join(result.reasons)}."
+
+
+@tool
 def save_opportunity_to_memory_tool(
     name: str,
     url: str,
@@ -91,5 +122,6 @@ ALL_AGENT_TOOLS = [
     search_web_tool,
     fetch_page_content_tool,
     check_channel_memory_tool,
+    verify_candidate_opportunity_tool,
     save_opportunity_to_memory_tool,
 ]

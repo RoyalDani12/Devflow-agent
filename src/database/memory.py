@@ -1,6 +1,6 @@
+from datetime import datetime, timedelta, timezone
 import os
 import sqlite3
-from datetime import datetime, timedelta, timezone
 from typing import Any
 
 DEFAULT_DB_PATH = os.path.join(
@@ -36,21 +36,62 @@ def get_db_connection(db_path: str = DEFAULT_DB_PATH) -> sqlite3.Connection:
                 url TEXT UNIQUE,
                 deadline TEXT,
                 eligibility TEXT,
-                status TEXT
+                status TEXT,
+                seen_count INTEGER DEFAULT 0
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS agent_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+            """
+        )
+        try:
+            conn.execute("ALTER TABLE discovered_opportunities ADD COLUMN seen_count INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
     return conn
 
 
+def get_stored_admin_id(db_path: str = DEFAULT_DB_PATH) -> int | None:
+    """Retrieve the owner user ID from database."""
+    conn = get_db_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM agent_settings WHERE key = 'admin_user_id'")
+        row = cursor.fetchone()
+        return int(row["value"]) if row else None
+    finally:
+        conn.close()
+
+
+def set_stored_admin_id(user_id: int, db_path: str = DEFAULT_DB_PATH) -> None:
+    """Persist the owner user ID so only the owner can access the bot."""
+    conn = get_db_connection(db_path)
+    try:
+        with conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO agent_settings (key, value) VALUES ('admin_user_id', ?)",
+                (str(user_id),),
+            )
+    finally:
+        conn.close()
+
+
 def is_url_published(url: str, db_path: str = DEFAULT_DB_PATH) -> bool:
-    """Check if a URL was previously published."""
+    """Check if a URL was previously published to the channel."""
     if not url:
         return False
-    with get_db_connection(db_path) as conn:
+    conn = get_db_connection(db_path)
+    try:
         cursor = conn.cursor()
         cursor.execute("SELECT 1 FROM published_posts WHERE url = ? LIMIT 1", (url,))
         return cursor.fetchone() is not None
+    finally:
+        conn.close()
 
 
 def get_recently_published(
@@ -59,7 +100,8 @@ def get_recently_published(
 ) -> list[dict[str, Any]]:
     """Return posts published within the last N days."""
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    with get_db_connection(db_path) as conn:
+    conn = get_db_connection(db_path)
+    try:
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -71,6 +113,8 @@ def get_recently_published(
             (cutoff,),
         )
         return [dict(row) for row in cursor.fetchall()]
+    finally:
+        conn.close()
 
 
 def record_published(
@@ -82,8 +126,9 @@ def record_published(
     db_path: str = DEFAULT_DB_PATH,
 ) -> bool:
     """Record a published post to long-term memory."""
+    conn = get_db_connection(db_path)
     try:
-        with get_db_connection(db_path) as conn:
+        with conn:
             conn.execute(
                 """
                 INSERT OR IGNORE INTO published_posts (category, title, url, content, channel_id)
@@ -94,6 +139,8 @@ def record_published(
         return True
     except sqlite3.Error:
         return False
+    finally:
+        conn.close()
 
 
 def record_opportunity(
@@ -104,16 +151,31 @@ def record_opportunity(
     status: str = "open",
     db_path: str = DEFAULT_DB_PATH,
 ) -> bool:
-    """Record an opportunity to the database."""
+    """Record or update an opportunity and increment seen count."""
+    conn = get_db_connection(db_path)
     try:
-        with get_db_connection(db_path) as conn:
+        with conn:
             conn.execute(
                 """
-                INSERT OR REPLACE INTO discovered_opportunities (name, url, deadline, eligibility, status)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO discovered_opportunities (name, url, deadline, eligibility, status, seen_count)
+                VALUES (?, ?, ?, ?, ?, 1)
+                ON CONFLICT(url) DO UPDATE SET seen_count = seen_count + 1, status = excluded.status
                 """,
                 (name, url, deadline, eligibility, status),
             )
         return True
     except sqlite3.Error:
         return False
+    finally:
+        conn.close()
+
+
+def get_seen_opportunity_urls(db_path: str = DEFAULT_DB_PATH) -> set[str]:
+    """Return all URLs that have already been recommended or published."""
+    conn = get_db_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT url FROM published_posts UNION SELECT url FROM discovered_opportunities WHERE seen_count > 1")
+        return {row["url"] for row in cursor.fetchall() if row["url"]}
+    finally:
+        conn.close()
