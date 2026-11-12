@@ -199,12 +199,46 @@ research tools.
 
 The primary product is a Telegram channel management agent. Its content is
 split into independent AI news and opportunities workflows, then combined into
-a daily draft. The news workflow produces up to two sourced AI news items. The
-opportunities workflow produces up to three verified, still-open opportunities,
-including opportunities open to applicants from Ethiopia when available. Each
-opportunity includes eligibility, application requirements, deadline status,
-and an official source URL. Drafts are not published automatically until review
-and publishing workflows are implemented.
+a daily draft. The news workflow produces up to two sourced AI and technology
+items, including products, research, robotics, infrastructure, tools, funding,
+policy, safety, and adoption, with an explanation of what changed and why it
+matters. The opportunities workflow searches globally and produces up to three
+verified, still-open opportunities, checking whether applicants from Ethiopia
+are eligible even when the opportunity is hosted elsewhere. Each opportunity
+includes eligibility, application requirements, deadline status, and an
+official source URL. Drafts are not published automatically until review and
+publishing workflows are implemented.
+
+Both workflows now research candidate pages before asking the model to write:
+they search the web, fetch page text, and provide labelled source evidence to
+the generator. The model must use that evidence instead of inventing sources.
+
+Opportunity candidates also have a deterministic verification layer that checks
+HTTPS official URLs, future deadlines, open application status, fresher
+suitability, Ethiopian eligibility, and application requirements.
+
+Run the complete daily research draft locally with:
+
+```bash
+./.venv/bin/python -c "from src.workflows.daily_workflow import generate_daily_draft; print(generate_daily_draft())"
+```
+
+This requires network access and `GROQ_API_KEY` in `.env`. Unit tests mock the
+network and model, so they remain deterministic.
+
+### Telegram draft approval and publishing
+
+In a Telegram group where the bot is an administrator with permission to post:
+
+1. Send `/draft` to generate and preview the daily content.
+2. Review the AI news and opportunities.
+3. Send `/approve` to publish the pending draft, or `/reject` to discard it.
+
+By default, `/approve` publishes in the same group. Set
+`TELEGRAM_PUBLISH_CHAT_ID` in `.env` to publish to another group or channel.
+The bot must be an administrator in the destination channel with permission
+to post messages. Pending drafts are kept in memory and are lost when the bot
+restarts.
 
 ### Phase 2 — LangGraph Agent
 - [x] Understand LangGraph fundamentals.

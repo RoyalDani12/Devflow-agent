@@ -31,6 +31,25 @@ class AgentWorkflowTests(unittest.TestCase):
 
         self.assertEqual(run_agent("Say nothing."), "")
 
+    @patch("src.agents.devflow_agent.run_react_agent")
+    def test_run_agent_routes_opportunity_requests(self, run_react_agent):
+        run_react_agent.return_value = "Found opportunities"
+
+        prompt = "for any oppent to ethiopian eligiable follewship schollars ship or hackatoon"
+        result = run_agent(prompt)
+
+        self.assertEqual(result, "Found opportunities")
+        run_react_agent.assert_called_once_with(prompt)
+
+    @patch("src.agents.devflow_agent.generate_ai_news")
+    def test_run_agent_routes_news_requests(self, generate_ai_news):
+        generate_ai_news.return_value = "Latest AI news"
+
+        result = run_agent("Give me latest ai news")
+
+        self.assertEqual(result, "Latest AI news")
+        generate_ai_news.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()
