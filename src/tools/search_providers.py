@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from html import unescape
 import json
 import os
 import re
@@ -50,7 +49,6 @@ def fetch_devpost_hackathons(limit: int = 6) -> list[SearchResult]:
                     unseen_results.append(item)
     except (OSError, ValueError):
         pass
-    # Unseen items come first
     return (unseen_results + results)[:limit]
 
 
@@ -91,29 +89,38 @@ def fetch_ethiopia_scholarships(limit: int = 8) -> list[SearchResult]:
     return (unseen_results + results)[:limit]
 
 
-def fetch_opportunitydesk(limit: int = 5) -> list[SearchResult]:
-    """Fetch international fellowships and scholarships from Opportunity Desk."""
+def fetch_opportunity_feeds(limit: int = 8) -> list[SearchResult]:
+    """Fetch opportunities from OpportunitiesForAfricans, Scholars4Dev, and OpportunityDesk."""
     seen_urls = get_seen_opportunity_urls()
     results = []
     unseen_results = []
-    try:
-        req = Request("https://opportunitydesk.org/feed/", headers={"User-Agent": USER_AGENT})
-        with urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
-            root = ElementTree.fromstring(resp.read())
-        for it in root.findall(".//item"):
-            title = it.findtext("title", default="").strip()
-            url_link = it.findtext("link", default="").strip()
-            raw_desc = it.findtext("description", default="")
-            snippet = re.sub(r"<[^>]+>", "", raw_desc).strip()
-            if title and url_link:
-                item = SearchResult(title, url_link, snippet)
-                if url_link in seen_urls:
-                    results.append(item)
-                else:
-                    unseen_results.append(item)
-    except (OSError, ValueError, ElementTree.ParseError):
-        pass
+    feeds = [
+        ("https://www.opportunitiesforafricans.com/feed/", "Opportunities for Africans"),
+        ("https://www.scholars4dev.com/feed/", "Scholars4Dev"),
+        ("https://opportunitydesk.org/feed/", "Opportunity Desk"),
+    ]
+    for feed_url, label in feeds:
+        try:
+            req = Request(feed_url, headers={"User-Agent": USER_AGENT})
+            with urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
+                root = ElementTree.fromstring(resp.read())
+            for it in root.findall(".//item"):
+                title = it.findtext("title", default="").strip()
+                url_link = it.findtext("link", default="").strip()
+                raw_desc = it.findtext("description", default="")
+                snippet = re.sub(r"<[^>]+>", "", raw_desc).strip()
+                if title and url_link:
+                    item = SearchResult(title, url_link, f"[{label}] {snippet[:180]}")
+                    if url_link in seen_urls:
+                        results.append(item)
+                    else:
+                        unseen_results.append(item)
+        except (OSError, ValueError, ElementTree.ParseError):
+            continue
     return (unseen_results + results)[:limit]
+
+
+fetch_opportunitydesk = fetch_opportunity_feeds
 
 
 def fetch_techcrunch_ai(limit: int = 5) -> list[SearchResult]:
@@ -146,10 +153,7 @@ def search_tavily(query: str, api_key: str, limit: int = 5) -> list[SearchResult
         req = Request(
             "https://api.tavily.com/search",
             data=payload,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}",
-            },
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
         )
         with urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
             data = json.loads(resp.read().decode("utf-8", errors="replace"))
