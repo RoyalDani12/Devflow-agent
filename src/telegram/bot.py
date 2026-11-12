@@ -11,7 +11,7 @@ from telegram.ext import (
     filters,
 )
 
-from src.agents.llm import generate_response
+from src.agents.devflow_agent import run_agent
 
 logger = logging.getLogger(__name__)
 MAX_TELEGRAM_MESSAGE_LENGTH = 4000
@@ -89,7 +89,7 @@ async def handle_message(
         )
 
         response = await asyncio.to_thread(
-            generate_response,
+            run_agent,
             user_message,
         )
 
