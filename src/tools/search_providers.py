@@ -126,8 +126,9 @@ fetch_opportunitydesk = fetch_opportunity_feeds
 
 
 def fetch_tech_news_feeds(limit: int = 6) -> list[SearchResult]:
-    """Fetch latest AI product releases and research from TechCrunch AI and MIT News AI."""
-    results = []
+    """Fetch latest AI product releases and research, prioritizing unseen items."""
+    seen_urls = get_seen_opportunity_urls()
+    results, unseen_results = [], []
     feeds = [
         ("https://techcrunch.com/category/artificial-intelligence/feed/", "TechCrunch AI"),
         ("https://news.mit.edu/rss/topic/artificial-intelligence2", "MIT AI News"),
@@ -137,14 +138,15 @@ def fetch_tech_news_feeds(limit: int = 6) -> list[SearchResult]:
             req = Request(feed_url, headers={"User-Agent": USER_AGENT})
             with urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
                 root = ElementTree.fromstring(resp.read())
-            for it in root.findall(".//item")[:limit]:
+            for it in root.findall(".//item")[: limit * 2]:
                 title = it.findtext("title", default="").strip()
                 url_link = it.findtext("link", default="").strip()
                 raw_desc = it.findtext("description", default="")
                 snippet = re.sub(r"<[^>]+>", "", raw_desc).strip()
                 img = _extract_rss_image(it)
                 if title and url_link:
-                    results.append(SearchResult(f"[{label}] {title}", url_link, snippet, image_url=img))
+                    item = SearchResult(f"[{label}] {title}", url_link, snippet, image_url=img)
+                    (results if url_link in seen_urls else unseen_results).append(item)
         except (OSError, ValueError, ElementTree.ParseError):
             continue
 
@@ -152,17 +154,19 @@ def fetch_tech_news_feeds(limit: int = 6) -> list[SearchResult]:
     try:
         req = Request("https://hacker-news.firebaseio.com/v0/topstories.json", headers={"User-Agent": USER_AGENT})
         with urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
-            ids = json.loads(resp.read().decode("utf-8"))[:3]
+            ids = json.loads(resp.read().decode("utf-8"))[:5]
         for sid in ids:
             item_req = Request(f"https://hacker-news.firebaseio.com/v0/item/{sid}.json", headers={"User-Agent": USER_AGENT})
             with urlopen(item_req, timeout=DEFAULT_TIMEOUT_SECONDS) as resp2:
                 data = json.loads(resp2.read().decode("utf-8"))
             if data and data.get("title") and data.get("url"):
-                results.append(SearchResult(f"[Hacker News] {data.get('title')}", data.get("url"), "Top trending developer story."))
+                hn_url = data.get("url")
+                item = SearchResult(f"[Hacker News] {data.get('title')}", hn_url, "Top trending developer story.")
+                (results if hn_url in seen_urls else unseen_results).append(item)
     except (OSError, ValueError):
         pass
 
-    return results[:limit]
+    return (unseen_results + results)[:limit]
 
 
 fetch_techcrunch_ai = fetch_tech_news_feeds

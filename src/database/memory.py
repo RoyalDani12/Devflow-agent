@@ -175,7 +175,7 @@ def get_seen_opportunity_urls(db_path: str = DEFAULT_DB_PATH) -> set[str]:
     conn = get_db_connection(db_path)
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT url FROM published_posts UNION SELECT url FROM discovered_opportunities WHERE seen_count > 1")
+        cursor.execute("SELECT url FROM published_posts UNION SELECT url FROM discovered_opportunities WHERE seen_count >= 1")
         return {row["url"] for row in cursor.fetchall() if row["url"]}
     finally:
         conn.close()

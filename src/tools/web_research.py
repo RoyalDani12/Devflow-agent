@@ -5,6 +5,7 @@ from urllib.parse import parse_qs, unquote, urlencode, urlparse
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 
+from src.database.memory import get_seen_opportunity_urls
 from src.tools.search_providers import (
     DEFAULT_TIMEOUT_SECONDS,
     SearchResult,
@@ -163,8 +164,13 @@ def collect_page_evidence(queries: list[str], result_limit: int = 4, page_limit:
                 seen_urls.add(result.url)
                 results.append(result)
 
+    db_seen = get_seen_opportunity_urls()
+    unseen_items = [r for r in results if r.url not in db_seen]
+    seen_items = [r for r in results if r.url in db_seen]
+    ordered_results = (unseen_items + seen_items)[:page_limit]
+
     evidence: list[str] = []
-    for result in results[:page_limit]:
+    for result in ordered_results:
         page_text = ""
         try:
             page_text = fetch_page(result.url)

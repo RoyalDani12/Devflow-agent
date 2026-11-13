@@ -41,9 +41,15 @@ daily_workflow = build_daily_workflow()
 
 
 def generate_daily_draft() -> str:
-    """Generate the combined daily draft without publishing it."""
+    """Generate the combined daily draft without publishing it, recording items to avoid repetition."""
+    import re
+    from src.database.memory import record_opportunity
+
     result = daily_workflow.invoke({})
-    return result.get("draft", "")
+    draft = result.get("draft", "")
+    for url in re.findall(r"https?://[^\s\)\>]+", draft):
+        record_opportunity(name="Draft item", url=url, status="presented")
+    return draft
 
 
 def generate_daily_draft_payload() -> dict[str, str]:

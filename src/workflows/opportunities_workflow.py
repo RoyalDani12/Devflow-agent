@@ -21,15 +21,16 @@ CRITICAL FORMATTING & STYLE RULES:
 - Start directly with:
 🎯 **Top Developer Opportunities & Fellowships**
 - Absolutely NO markdown tables (|---|---|), ASCII table borders, or multiple consecutive asterisks (***).
+- ASTERISK MINIMALISM: ONLY bold the opportunity title (e.g. 🌟 **Title**). Absolutely DO NOT put bold asterisks on labels (write 🏢 Host:, 🎓 Eligibility:, 💰 Funding:, 📅 Deadline:, 🔗 Apply Link:, 💡 Overview: WITHOUT asterisks).
 - Format each verified opportunity as a sleek Telegram card using clean emoji bullets:
 
 🌟 **[Program or Hackathon Name]**
-🏢 **Host:** [Organization / Platform]
-🎓 **Eligibility:** [Suitable for students, freshers, or early-career applicants; state whether applicants from Ethiopia are eligible]
-💰 **Funding / Prize:** [Fully Funded / Cash Prize / Stipend / Free]
-📅 **Deadline:** [Month Day, Year - Status as of today]
-🔗 **Apply Link:** [Direct Application URL]
-💡 **Overview:** [1-2 sentences on what developers gain]
+🏢 Host: [Organization / Platform]
+🎓 Eligibility: [Suitable for students, freshers, or early-career applicants; state whether applicants from Ethiopia are eligible]
+💰 Funding: [Fully Funded / Cash Prize / Stipend / Free]
+📅 Deadline: [Month Day, Year - Status as of today]
+🔗 Apply Link: [Direct Application URL]
+💡 Overview: [1-2 sentences on what developers gain]
 
 Verification Rules:
 - Search globally: the opportunity may be hosted anywhere in the world.
