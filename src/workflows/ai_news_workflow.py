@@ -19,18 +19,21 @@ Include no more than two recent, high-impact items. Do not limit coverage to AI 
 
 CRITICAL FORMATTING & STYLE RULES:
 - Never output meta text like 'Telegram-ready...', 'Here is the draft...', or prompt instructions.
-- Start directly with:
-🚀 Tech & AI Breakthroughs
+- Separate each distinct news item with: ===ITEM===
+- Format each item with an authoritative journal-style heading and clean bullet points (•):
+
+===ITEM===
+📰 AI & TECH JOURNAL DISPATCH
+⚡ Headline: [Authoritative headline of what changed or launched]
+
+• Category: [Model / Infrastructure / Developer Tool / Robotics / Research]
+• Publication Date: [Date]
+• Key Breakthrough: [Explain what is genuinely new or different]
+• Why developers should care: [Explain why developers should care]
+• Direct Source: [Include a direct source URL]
+
 - Absolutely NO markdown tables (|---|---|), ASCII table borders, or asterisks (* or **).
 - ZERO ASTERISKS: Do NOT use bold asterisks (* or **) anywhere in the response. Use clean plain text and emojis only.
-- Format each item as a sleek Telegram card using clean emoji bullets:
-
-⚡ [Direct Headline of What Changed or Launched]
-🏷️ Category: [Model / Infrastructure / Developer Tool / Robotics / Research]
-📅 Date: [Publication Date]
-💡 Why developers should care: [Explain what is genuinely new or different and why developers should care]
-🔗 Source: [Include a direct source URL]
-
 - Never invent a story, date, or source.
 - You do NOT have a web browser or tools. Do not emit tool calls like browser.open or browser.search.
 If evidence is insufficient, state: "⚡ No verified breaking AI updates today."

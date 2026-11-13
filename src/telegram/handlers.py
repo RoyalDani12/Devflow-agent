@@ -54,12 +54,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "👋 Welcome back, Owner!\n\n"
         "🔒 Authentication verified. Only you can control this agent.\n\n"
         "🚀 AI News & Tech Trends\n"
-        "🎯 Tech Opportunities & Fellowships (Auto-deduplicated)\n"
+        "🎯 Tech Opportunities & Fellowships\n"
         "💻 Coding & Developer Guidance\n\n"
         "Commands:\n"
-        "/draft - Generate fresh, unseen opportunities\n"
-        "/approve - Publish pending draft\n"
-        "/reject - Discard draft"
+        "/draft - Generate fresh reviewable cards\n"
+        "/approve - Publish all pending cards\n"
+        "/reject - Discard all pending cards"
     )
 
     if latest_cached_briefing:
@@ -68,7 +68,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.bot,
             chat_id,
             latest_cached_briefing,
-            header="📋 **Latest verified briefing ready for review:**",
+            header="📋 Latest verified briefing ready for review:",
         )
 
 
@@ -77,9 +77,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🤖 **DevFlow Owner Commands**\n\n"
         "/start - Authenticate & register this chat\n"
-        "/draft - Run research scan & prepare draft with banner\n"
-        "/approve - Publish current pending draft to channel\n"
-        "/reject - Discard current pending draft\n"
+        "/draft - Run research scan & prepare individual review cards\n"
+        "/approve - Publish pending cards to channel\n"
+        "/reject - Discard pending cards\n"
         "/chatid - View this chat's ID\n\n"
         "Or simply ask me any technical question or request."
     )
@@ -112,21 +112,76 @@ async def draft_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @require_admin
 async def approve_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    from src.telegram.card_manager import get_all_pending_cards, pop_card
+
     review_chat_id = update.effective_chat.id
-    if review_chat_id not in pending_drafts:
-        await update.message.reply_text("There is no pending draft to publish.")
+    pending_cards_list = get_all_pending_cards()
+    if not pending_cards_list and review_chat_id not in pending_drafts:
+        await update.message.reply_text("There are no pending items to publish.")
         return
-    success = await _execute_publish(context, review_chat_id)
-    msg = "✅ Draft published successfully with media." if success else "Draft was empty."
-    await update.message.reply_text(msg)
+
+    count = 0
+    publish_chat_id = _publish_chat_id(review_chat_id)
+    for card in pending_cards_list:
+        await publish_content_with_media(context.bot, publish_chat_id, card.text)
+        for url in re.findall(r"https?://[^\s\)\>]+", card.text):
+            record_published("Card Broadcast", url, card.category, card.text[:400], str(publish_chat_id))
+        pop_card(card.card_id)
+        count += 1
+
+    if review_chat_id in pending_drafts:
+        await _execute_publish(context, review_chat_id)
+        count += 1
+
+    await update.message.reply_text(f"✅ Published {count} item(s) to the channel.")
 
 
 @require_admin
 async def reject_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if pending_drafts.pop(update.effective_chat.id, None) is None:
-        await update.message.reply_text("There is no pending draft to reject.")
+    from src.telegram.card_manager import clear_all_cards, get_all_pending_cards
+
+    had_cards = len(get_all_pending_cards()) > 0
+    clear_all_cards()
+    had_draft = pending_drafts.pop(update.effective_chat.id, None) is not None
+    if not had_cards and not had_draft:
+        await update.message.reply_text("There are no pending items to reject.")
         return
-    await update.message.reply_text("🗑️ Draft discarded.")
+    await update.message.reply_text("🗑️ All pending items discarded.")
+
+
+@require_admin
+async def handle_card_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle granular approve/reject clicks for individual cards."""
+    from src.telegram.card_manager import get_card, pop_card
+
+    query = update.callback_query
+    await query.answer()
+    data = query.data or ""
+    parts = data.split(":")
+    if len(parts) < 3:
+        return
+    action, card_id = parts[1], parts[2]
+    chat_id = query.message.chat_id
+
+    card = get_card(card_id)
+    if not card:
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.message.reply_text("⚠️ This item is no longer pending or already processed.")
+        return
+
+    if action == "approve":
+        publish_chat_id = _publish_chat_id(chat_id)
+        await publish_content_with_media(context.bot, publish_chat_id, card.text)
+        for url in re.findall(r"https?://[^\s\)\>]+", card.text):
+            record_published("Individual Card Broadcast", url, card.category, card.text[:400], str(publish_chat_id))
+        pop_card(card_id)
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.message.reply_text("✅ Published this card to the channel!")
+
+    elif action == "reject":
+        pop_card(card_id)
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.message.reply_text("🗑️ Discarded this item.")
 
 
 @require_admin

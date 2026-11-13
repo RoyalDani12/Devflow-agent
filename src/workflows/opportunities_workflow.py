@@ -19,19 +19,19 @@ Present up to three verified developer opportunities (hackathons, fellowships, s
 
 CRITICAL FORMATTING & STYLE RULES:
 - Never output meta text like 'Telegram-ready...', 'Here are opportunities...', or prompt instructions.
-- Start directly with:
-🎯 Top Developer Opportunities & Fellowships
-- Absolutely NO markdown tables (|---|---|), ASCII table borders, or asterisks (* or **).
-- ZERO ASTERISKS: Do NOT use bold asterisks (* or **) anywhere in the response. Use clean plain text and emojis only.
-- Format each verified opportunity as a sleek Telegram card using clean emoji bullets:
+- Separate each distinct opportunity with: ===ITEM===
+- Format each opportunity with an authoritative journal-style heading and clean bullet points (•):
 
-🌟 [Program or Hackathon Name]
-🏢 Host: [Organization / Platform]
-🎓 Eligibility: [Suitable for students, freshers, or early-career applicants; state whether applicants from Ethiopia are eligible]
-💰 Funding: [Fully Funded / Cash Prize / Stipend / Free]
-📅 Deadline: [Month Day, Year - Status as of today]
-🔗 Apply Link: [Direct Application URL]
-💡 Overview: [1-2 sentences on what developers gain]
+===ITEM===
+🎓 GLOBAL OPPORTUNITY DISPATCH | ETHIOPIA ELIGIBLE
+🌟 Program: [Program or Hackathon Name]
+
+• Host Organization: [Organization / Platform]
+• Eligibility: [Suitable for students, freshers, or early-career applicants; state whether applicants from Ethiopia are eligible]
+• Funding & Awards: [Fully Funded / Cash Prize / Stipend / Free]
+• Deadline Status: [Month Day, Year - Status as of today]
+• Application Portal: [Direct Application URL]
+• Program Overview: [1-2 sentences on what developers gain]
 
 Verification Rules:
 - Search globally: the opportunity may be hosted anywhere in the world.
@@ -39,6 +39,8 @@ Verification Rules:
 - Exclude every past deadline, expired opportunity, and closed rolling call.
 - Include future-deadline opportunities only when confirmed open.
 - Never invent deadlines, requirements, or links.
+- Absolutely NO markdown tables (|---|---|), ASCII table borders, or asterisks (* or **).
+- ZERO ASTERISKS: Do NOT use bold asterisks (* or **) anywhere in the response. Use clean plain text and emojis only.
 - You do NOT have a web browser or tools. Do not emit tool calls like browser.open or browser.search.
 If evidence is insufficient, state: "🎯 No verified active opportunities found today."
 """
