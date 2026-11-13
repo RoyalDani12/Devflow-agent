@@ -4,6 +4,7 @@ from typing import TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from src.agents.llm import generate_response
+from src.tools.media_service import strip_markdown_asterisks
 from src.tools.web_research import collect_page_evidence
 
 
@@ -19,12 +20,12 @@ Include no more than two recent, high-impact items. Do not limit coverage to AI 
 CRITICAL FORMATTING & STYLE RULES:
 - Never output meta text like 'Telegram-ready...', 'Here is the draft...', or prompt instructions.
 - Start directly with:
-🚀 **Tech & AI Breakthroughs**
-- Absolutely NO markdown tables (|---|---|), ASCII table borders, or multiple consecutive asterisks (***).
-- ASTERISK MINIMALISM: ONLY bold the main title (e.g. ⚡ **Headline**). Absolutely DO NOT put bold asterisks on labels (write 🏷️ Category:, 📅 Date:, 💡 Why developers should care:, 🔗 Source: WITHOUT asterisks).
+🚀 Tech & AI Breakthroughs
+- Absolutely NO markdown tables (|---|---|), ASCII table borders, or asterisks (* or **).
+- ZERO ASTERISKS: Do NOT use bold asterisks (* or **) anywhere in the response. Use clean plain text and emojis only.
 - Format each item as a sleek Telegram card using clean emoji bullets:
 
-⚡ **[Direct Headline of What Changed or Launched]**
+⚡ [Direct Headline of What Changed or Launched]
 🏷️ Category: [Model / Infrastructure / Developer Tool / Robotics / Research]
 📅 Date: [Publication Date]
 💡 Why developers should care: [Explain what is genuinely new or different and why developers should care]
@@ -37,9 +38,9 @@ If evidence is insufficient, state: "⚡ No verified breaking AI updates today."
 
 
 def create_ai_news(state: AINewsState) -> AINewsState:
-    """Generate a separate, reviewable AI news section."""
+    """Generate a separate, reviewable AI news section without asterisks."""
     prompt = f"{AI_NEWS_PROMPT}\n\nVERIFIED PAGE EVIDENCE:\n{state.get('evidence', '')}"
-    return {"news": generate_response(prompt)}
+    return {"news": strip_markdown_asterisks(generate_response(prompt))}
 
 
 def research_ai_news(state: AINewsState) -> AINewsState:

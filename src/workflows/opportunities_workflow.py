@@ -4,6 +4,7 @@ from typing import TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from src.agents.llm import generate_response
+from src.tools.media_service import strip_markdown_asterisks
 from src.tools.web_research import collect_page_evidence
 
 
@@ -19,12 +20,12 @@ Present up to three verified developer opportunities (hackathons, fellowships, s
 CRITICAL FORMATTING & STYLE RULES:
 - Never output meta text like 'Telegram-ready...', 'Here are opportunities...', or prompt instructions.
 - Start directly with:
-🎯 **Top Developer Opportunities & Fellowships**
-- Absolutely NO markdown tables (|---|---|), ASCII table borders, or multiple consecutive asterisks (***).
-- ASTERISK MINIMALISM: ONLY bold the opportunity title (e.g. 🌟 **Title**). Absolutely DO NOT put bold asterisks on labels (write 🏢 Host:, 🎓 Eligibility:, 💰 Funding:, 📅 Deadline:, 🔗 Apply Link:, 💡 Overview: WITHOUT asterisks).
+🎯 Top Developer Opportunities & Fellowships
+- Absolutely NO markdown tables (|---|---|), ASCII table borders, or asterisks (* or **).
+- ZERO ASTERISKS: Do NOT use bold asterisks (* or **) anywhere in the response. Use clean plain text and emojis only.
 - Format each verified opportunity as a sleek Telegram card using clean emoji bullets:
 
-🌟 **[Program or Hackathon Name]**
+🌟 [Program or Hackathon Name]
 🏢 Host: [Organization / Platform]
 🎓 Eligibility: [Suitable for students, freshers, or early-career applicants; state whether applicants from Ethiopia are eligible]
 💰 Funding: [Fully Funded / Cash Prize / Stipend / Free]
@@ -44,9 +45,9 @@ If evidence is insufficient, state: "🎯 No verified active opportunities found
 
 
 def create_opportunities(state: OpportunitiesState) -> OpportunitiesState:
-    """Generate a separate, reviewable opportunities section."""
+    """Generate a separate, reviewable opportunities section without asterisks."""
     prompt = f"{OPPORTUNITIES_PROMPT}\n\nVERIFIED PAGE EVIDENCE:\n{state.get('evidence', '')}"
-    return {"opportunities": generate_response(prompt)}
+    return {"opportunities": strip_markdown_asterisks(generate_response(prompt))}
 
 
 def research_opportunities(state: OpportunitiesState) -> OpportunitiesState:

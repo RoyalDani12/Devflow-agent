@@ -1,80 +1,89 @@
 import logging
 from telegram import Bot, InlineKeyboardMarkup, LinkPreviewOptions
 
-from src.tools.media_service import extract_media_image
+from src.tools.media_service import (
+    detect_section_category,
+    extract_media_image,
+    strip_markdown_asterisks,
+)
 
 logger = logging.getLogger("DevFlowMediaSender")
 
 
-async def publish_content_with_media(bot: Bot, target_chat_id: int, text: str) -> bool:
-    """Publish content as ONE single message with an image banner to the Telegram channel."""
-    from src.telegram.bot import split_message
+async def publish_content_with_media(bot: Bot, target_chat_id: int, text: str | list[str]) -> bool:
+    """Publish each section as its OWN distinct message to the Telegram channel."""
+    from src.workflows.daily_workflow import split_draft_sections
 
-    image_url = extract_media_image(text, fallback_category="daily")
-    clean_text = text.strip()
+    sections = split_draft_sections(text)
+    if not sections:
+        return False
 
-    if len(clean_text) <= 4000:
+    for section in sections:
+        clean_text = strip_markdown_asterisks(section)
+        category = detect_section_category(clean_text)
+        image_url = extract_media_image(clean_text, fallback_category=category)
+        link_options = (
+            LinkPreviewOptions(url=image_url, prefer_large_media=True, show_above_text=True)
+            if image_url
+            else None
+        )
         try:
-            link_options = (
-                LinkPreviewOptions(url=image_url, prefer_large_media=True, show_above_text=True)
-                if image_url
-                else None
-            )
             await bot.send_message(
                 chat_id=target_chat_id,
                 text=clean_text,
                 link_preview_options=link_options,
             )
-            return True
         except Exception as exc:
-            logger.warning("Publishing single message with LinkPreviewOptions failed: %s", exc)
+            logger.warning("Publishing section message failed, falling back: %s", exc)
             await bot.send_message(chat_id=target_chat_id, text=clean_text)
-            return True
-
-    for chunk in split_message(clean_text):
-        await bot.send_message(chat_id=target_chat_id, text=chunk)
     return True
 
 
 async def send_draft_for_review(
     bot: Bot,
     target_chat_id: int,
-    text: str,
+    text: str | list[str],
     header: str = "",
     reply_markup: InlineKeyboardMarkup | None = None,
 ) -> bool:
-    """Deliver the draft preview as ONE single message with banner and inline buttons."""
-    from src.telegram.bot import get_draft_review_keyboard, split_message
+    """Deliver each section as its OWN distinct message with category banner and buttons."""
+    from src.telegram.bot import get_draft_review_keyboard
+    from src.workflows.daily_workflow import split_draft_sections
 
     markup = reply_markup or get_draft_review_keyboard()
-    image_url = extract_media_image(text, fallback_category="daily")
-    message_text = f"{header}\n\n{text}".strip() if header else text.strip()
+    sections = split_draft_sections(text)
+    if not sections:
+        return False
 
-    if len(message_text) <= 4000:
+    if header:
         try:
-            link_options = (
-                LinkPreviewOptions(url=image_url, prefer_large_media=True, show_above_text=True)
-                if image_url
-                else None
-            )
-            await bot.send_message(
-                chat_id=target_chat_id,
-                text=message_text,
-                link_preview_options=link_options,
-                reply_markup=markup,
-            )
-            return True
-        except Exception as exc:
-            logger.warning("Draft preview single message failed, falling back: %s", exc)
-            await bot.send_message(
-                chat_id=target_chat_id,
-                text=message_text,
-                reply_markup=markup,
-            )
-            return True
+            await bot.send_message(chat_id=target_chat_id, text=header)
+        except Exception:
+            pass
 
-    chunks = split_message(message_text)
-    for i, chunk in enumerate(chunks):
-        chunk_markup = markup if i == len(chunks) - 1 else None
-        await bot.send_message(chat_id=target_chat_id, text=chunk, reply_markup=chunk_markup)
+    for i, section in enumerate(sections):
+        clean_text = strip_markdown_asterisks(section)
+        category = detect_section_category(clean_text)
+        image_url = extract_media_image(clean_text, fallback_category=category)
+        link_options = (
+            LinkPreviewOptions(url=image_url, prefer_large_media=True, show_above_text=True)
+            if image_url
+            else None
+        )
+        card_markup = markup if i == len(sections) - 1 else None
+
+        try:
+            await bot.send_message(
+                chat_id=target_chat_id,
+                text=clean_text,
+                link_preview_options=link_options,
+                reply_markup=card_markup,
+            )
+        except Exception as exc:
+            logger.warning("Draft preview section %d failed, falling back: %s", i, exc)
+            await bot.send_message(
+                chat_id=target_chat_id,
+                text=clean_text,
+                reply_markup=card_markup,
+            )
     return True

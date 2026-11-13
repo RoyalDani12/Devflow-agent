@@ -4,6 +4,7 @@ from src.tools.media_service import (
     build_caption_and_body,
     extract_media_image,
     get_category_banner,
+    strip_markdown_asterisks,
 )
 
 
@@ -28,6 +29,13 @@ class MediaServiceTests(unittest.TestCase):
         text = "Text without any image urls."
         extracted = extract_media_image(text, fallback_category="hackathons")
         self.assertEqual(extracted, get_category_banner("hackathons"))
+
+    def test_strip_markdown_asterisks(self):
+        text = "🚀 **Tech & AI Breakthroughs**\n⚡ **Jensen Huang Resigns** *update*"
+        cleaned = strip_markdown_asterisks(text)
+        self.assertNotIn("*", cleaned)
+        self.assertIn("Tech & AI Breakthroughs", cleaned)
+        self.assertIn("Jensen Huang Resigns", cleaned)
 
     def test_build_caption_and_body_short_text(self):
         short_text = "Short telegram post"

@@ -23,6 +23,21 @@ def get_category_banner(category: str = "daily") -> str:
     return DEFAULT_BANNERS.get(category, DEFAULT_BANNERS["daily"])
 
 
+def strip_markdown_asterisks(text: str) -> str:
+    """Remove all markdown asterisks while preserving clean readability."""
+    if not text:
+        return ""
+    return re.sub(r"\*{1,3}", "", text).strip()
+
+
+def detect_section_category(text: str) -> str:
+    """Detect whether a section is AI news or opportunities."""
+    lower = text.lower()
+    if any(k in lower for k in ["opportunity", "fellowship", "scholarship", "hackathon", "grant"]):
+        return "opportunities"
+    return "ai_news"
+
+
 def extract_media_image(text: str, fallback_category: str = "daily") -> str:
     """Extract an explicit image URL from text, or return category-specific banner."""
     if not text:
@@ -36,25 +51,25 @@ def extract_media_image(text: str, fallback_category: str = "daily") -> str:
     if img_match:
         return img_match.group(0)
 
-    return get_category_banner(fallback_category)
+    category = fallback_category if fallback_category != "daily" else detect_section_category(text)
+    return get_category_banner(category)
 
 
 def build_caption_and_body(text: str, max_caption_len: int = 1000) -> tuple[str, list[str]]:
     """Format text for Telegram send_photo caption (<=1024 chars) and subsequent body chunks."""
     from src.telegram.bot import split_message
 
-    text = text.strip()
-    if len(text) <= max_caption_len:
-        return text, []
+    cleaned = strip_markdown_asterisks(text)
+    if len(cleaned) <= max_caption_len:
+        return cleaned, []
 
-    # Find clean paragraph break within limit
-    split_pos = text.rfind("\n\n", 0, max_caption_len)
+    split_pos = cleaned.rfind("\n\n", 0, max_caption_len)
     if split_pos <= 0:
-        split_pos = text.rfind("\n", 0, max_caption_len)
+        split_pos = cleaned.rfind("\n", 0, max_caption_len)
     if split_pos <= 0:
         split_pos = max_caption_len
 
-    caption = text[:split_pos].strip()
-    remaining = text[split_pos:].strip()
+    caption = cleaned[:split_pos].strip()
+    remaining = cleaned[split_pos:].strip()
     body_chunks = split_message(remaining) if remaining else []
     return caption, body_chunks

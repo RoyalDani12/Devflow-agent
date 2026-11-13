@@ -91,7 +91,7 @@ async def run_autonomous_scan_cycle(bot: Bot | None = None, review_chat_id: int 
             bot,
             target_chat,
             draft,
-            header="🤖 **DevFlow Autonomous Briefing Ready for Review**\n\nI completed today's autonomous research scan. Review the draft below:",
+            header="🤖 DevFlow Autonomous Briefing Ready for Review\n\nI completed today's autonomous research scan. Review the draft below:",
         )
 
         logger.info("🤖 Autonomous Agent: Briefing successfully delivered to admin chat %s", target_chat)

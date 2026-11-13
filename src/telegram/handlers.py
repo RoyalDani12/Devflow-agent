@@ -28,15 +28,16 @@ def _publish_chat_id(review_chat_id: int) -> int:
 
 async def _execute_publish(context: ContextTypes.DEFAULT_TYPE, review_chat_id: int) -> bool:
     draft = pending_drafts.get(review_chat_id)
-    if not draft or not draft.strip():
+    if not draft or (isinstance(draft, str) and not draft.strip()):
         pending_drafts.pop(review_chat_id, None)
         return False
 
     publish_chat_id = _publish_chat_id(review_chat_id)
     await publish_content_with_media(context.bot, publish_chat_id, draft)
 
-    for url in re.findall(r"https?://[^\s\)\>]+", draft):
-        record_published("Daily Broadcast Update", url, "daily_post", draft[:400], str(publish_chat_id))
+    draft_str = " ".join(draft) if isinstance(draft, list) else str(draft)
+    for url in re.findall(r"https?://[^\s\)\>]+", draft_str):
+        record_published("Daily Broadcast Update", url, "daily_post", draft_str[:400], str(publish_chat_id))
 
     del pending_drafts[review_chat_id]
     return True
