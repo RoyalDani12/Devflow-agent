@@ -37,6 +37,7 @@ Verification Rules:
 - Exclude every past deadline, expired opportunity, and closed rolling call.
 - Include future-deadline opportunities only when confirmed open.
 - Never invent deadlines, requirements, or links.
+- You do NOT have a web browser or tools. Do not emit tool calls like browser.open or browser.search.
 If evidence is insufficient, state: "🎯 No verified active opportunities found today."
 """
 

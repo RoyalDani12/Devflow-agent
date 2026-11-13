@@ -30,6 +30,7 @@ CRITICAL FORMATTING & STYLE RULES:
 🔗 **Read Source:** [Include a direct source URL]
 
 - Never invent a story, date, or source.
+- You do NOT have a web browser or tools. Do not emit tool calls like browser.open or browser.search.
 If evidence is insufficient, state: "⚡ No verified breaking AI updates today."
 """
 
