@@ -17,11 +17,15 @@ from src.telegram.handlers import (
     draft_command,
     handle_card_callback,
     handle_draft_callback,
-    handle_message,
     help_command,
     pending_drafts,
     reject_command,
     start,
+)
+from src.telegram.settings_handlers import (
+    handle_message,
+    handle_settings_callback,
+    settings_command,
 )
 
 logger = logging.getLogger(__name__)
@@ -80,9 +84,11 @@ def create_application(token: str) -> Application:
     app.add_handler(CommandHandler("draft", draft_command))
     app.add_handler(CommandHandler("approve", approve_command))
     app.add_handler(CommandHandler("reject", reject_command))
+    app.add_handler(CommandHandler("settings", settings_command))
 
     app.add_handler(CallbackQueryHandler(handle_card_callback, pattern=r"^card:"))
     app.add_handler(CallbackQueryHandler(handle_draft_callback, pattern=r"^draft:"))
+    app.add_handler(CallbackQueryHandler(handle_settings_callback, pattern=r"^settings:"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     return app

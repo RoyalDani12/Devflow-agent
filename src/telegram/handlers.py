@@ -1,3 +1,8 @@
+"""
+Core Telegram command handlers for DevFlow Agent.
+Settings & message routing live in settings_handlers.py and message_handler.py.
+All < 250 lines.
+"""
 import asyncio
 import logging
 import os
@@ -6,7 +11,6 @@ import re
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from src.agents.devflow_agent import run_agent
 from src.database.memory import record_published
 from src.telegram.auth import require_admin
 from src.telegram.media_sender import publish_content_with_media, send_draft_for_review
@@ -36,7 +40,7 @@ async def _execute_publish(context: ContextTypes.DEFAULT_TYPE, review_chat_id: i
     await publish_content_with_media(context.bot, publish_chat_id, draft)
 
     draft_str = " ".join(draft) if isinstance(draft, list) else str(draft)
-    for url in re.findall(r"https?://[^\s\)\>]+", draft_str):
+    for url in re.findall(r"https?://[^\s\)>]+", draft_str):
         record_published("Daily Broadcast Update", url, "daily_post", draft_str[:400], str(publish_chat_id))
 
     del pending_drafts[review_chat_id]
@@ -57,9 +61,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🎯 Tech Opportunities & Fellowships\n"
         "💻 Coding & Developer Guidance\n\n"
         "Commands:\n"
-        "/draft - Generate fresh reviewable cards\n"
-        "/approve - Publish all pending cards\n"
-        "/reject - Discard all pending cards"
+        "/draft     — Generate fresh reviewable cards\n"
+        "/approve   — Publish all pending cards\n"
+        "/reject    — Discard all pending cards\n"
+        "/settings  — Open control panel"
     )
 
     if latest_cached_briefing:
@@ -75,13 +80,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @require_admin
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🤖 **DevFlow Owner Commands**\n\n"
-        "/start - Authenticate & register this chat\n"
-        "/draft - Run research scan & prepare individual review cards\n"
-        "/approve - Publish pending cards to channel\n"
-        "/reject - Discard pending cards\n"
-        "/chatid - View this chat's ID\n\n"
-        "Or simply ask me any technical question or request."
+        "🤖 DevFlow Owner Commands\n\n"
+        "/start     — Authenticate and register this chat\n"
+        "/draft     — Run research scan and prepare review cards\n"
+        "/approve   — Publish all pending cards to channel\n"
+        "/reject    — Discard all pending cards\n"
+        "/settings  — Open the in-chat control panel\n"
+        "/chatid    — View this chat ID\n\n"
+        "Or type a topic (e.g. 'AI hackathon') to search instantly."
     )
 
 
@@ -124,7 +130,7 @@ async def approve_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     publish_chat_id = _publish_chat_id(review_chat_id)
     for card in pending_cards_list:
         await publish_content_with_media(context.bot, publish_chat_id, card.text)
-        for url in re.findall(r"https?://[^\s\)\>]+", card.text):
+        for url in re.findall(r"https?://[^\s\)>]+", card.text):
             record_published("Card Broadcast", url, card.category, card.text[:400], str(publish_chat_id))
         pop_card(card.card_id)
         count += 1
@@ -172,7 +178,7 @@ async def handle_card_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     if action == "approve":
         publish_chat_id = _publish_chat_id(chat_id)
         await publish_content_with_media(context.bot, publish_chat_id, card.text)
-        for url in re.findall(r"https?://[^\s\)\>]+", card.text):
+        for url in re.findall(r"https?://[^\s\)>]+", card.text):
             record_published("Individual Card Broadcast", url, card.category, card.text[:400], str(publish_chat_id))
         pop_card(card_id)
         await query.edit_message_reply_markup(reply_markup=None)
@@ -208,20 +214,3 @@ async def handle_draft_callback(update: Update, context: ContextTypes.DEFAULT_TY
             await send_draft_for_review(context.bot, chat_id, draft)
         else:
             await query.message.reply_text("No new content found during refresh.")
-
-
-@require_admin
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    from src.telegram.bot import split_message
-
-    if not update.message or not update.message.text:
-        return
-    user_message = update.message.text
-    try:
-        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-        response = await asyncio.to_thread(run_agent, user_message) or "No response generated."
-        for chunk in split_message(response):
-            await update.message.reply_text(chunk)
-    except Exception as exc:
-        logger.exception("Message handling failed")
-        await update.message.reply_text(f"Error: {exc}")

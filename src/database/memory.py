@@ -3,7 +3,8 @@ import os
 import sqlite3
 from typing import Any
 
-DEFAULT_DB_PATH = os.path.join(
+_env_db = os.getenv("DB_PATH")
+DEFAULT_DB_PATH = _env_db if _env_db else os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
     "devflow_memory.db",
 )
