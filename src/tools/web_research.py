@@ -149,6 +149,11 @@ def fetch_page(url: str) -> str:
     with urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
         html = resp.read().decode("utf-8", errors="replace")
 
+    from src.tools.media_service import extract_og_image_from_html, register_url_image
+    og_img = extract_og_image_from_html(html)
+    if og_img:
+        register_url_image(url, og_img)
+
     parser = _TextParser()
     parser.feed(html)
     return " ".join(parser.text)[:MAX_PAGE_CHARS]
@@ -182,6 +187,10 @@ def collect_page_evidence(queries: list[str], result_limit: int = 4, page_limit:
         if not page_text:
             continue
 
-        img_line = f"\nIMAGE URL: {result.image_url}" if getattr(result, "image_url", None) else ""
+        if getattr(result, "image_url", None):
+            register_url_image(result.url, result.image_url)
+            img_line = f"\nIMAGE URL: {result.image_url}"
+        else:
+            img_line = ""
         evidence.append(f"SOURCE URL: {result.url}{img_line}\nSEARCH TITLE: {result.title}\nPAGE CONTENT: {page_text}")
     return "\n\n--- CANDIDATE SOURCE ---\n\n".join(evidence)[:MAX_EVIDENCE_CHARS]

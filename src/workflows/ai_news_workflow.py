@@ -15,7 +15,7 @@ class AINewsState(TypedDict, total=False):
 
 AI_NEWS_PROMPT = f"""You are DevFlow's autonomous tech editor. Current date: {date.today().isoformat()}.
 Generate a high-impact AI and developer tech news briefing based ONLY on the verified evidence below.
-Include no more than two recent, high-impact items. Do not limit coverage to AI models.
+Present distinct verified tech breakthroughs (no more than two per company or subfield). Do not limit coverage to AI models.
 
 CRITICAL FORMATTING & STYLE RULES:
 - Never output meta text like 'Telegram-ready...', 'Here is the draft...', or prompt instructions.

@@ -32,6 +32,10 @@ def _extract_rss_image(item_node) -> str | None:
             return child.attrib.get("url")
         if "thumbnail" in tag_lower:
             return child.attrib.get("url")
+    desc = item_node.findtext("description", default="")
+    img_m = re.search(r'<img[^>]+src=[\"\']([^\"\']+)[\"\']', desc, re.IGNORECASE)
+    if img_m and img_m.group(1).startswith("http"):
+        return img_m.group(1)
     return None
 
 
@@ -132,6 +136,8 @@ def fetch_tech_news_feeds(limit: int = 6) -> list[SearchResult]:
     feeds = [
         ("https://techcrunch.com/category/artificial-intelligence/feed/", "TechCrunch AI"),
         ("https://news.mit.edu/rss/topic/artificial-intelligence2", "MIT AI News"),
+        ("https://arstechnica.com/tag/ai/feed/", "Ars Technica"),
+        ("https://www.theverge.com/rss/index.xml", "The Verge"),
     ]
     for feed_url, label in feeds:
         try:

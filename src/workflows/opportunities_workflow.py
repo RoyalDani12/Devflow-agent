@@ -15,7 +15,7 @@ class OpportunitiesState(TypedDict, total=False):
 
 
 OPPORTUNITIES_PROMPT = f"""You are DevFlow's opportunity research scout. Current date: {date.today().isoformat()}.
-Present up to three verified developer opportunities (hackathons, fellowships, scholarships, grants).
+Present verified developer opportunities (up to three or more high-impact hackathons, fellowships, scholarships, grants, internships).
 
 CRITICAL FORMATTING & STYLE RULES:
 - Never output meta text like 'Telegram-ready...', 'Here are opportunities...', or prompt instructions.
