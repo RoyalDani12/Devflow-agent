@@ -1,11 +1,13 @@
 import asyncio
 import logging
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.error import BadRequest, Forbidden, NetworkError, TelegramError
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
     CommandHandler,
+    ContextTypes,
     MessageHandler,
     filters,
 )
@@ -75,6 +77,38 @@ async def _post_init(app: Application) -> None:
     asyncio.create_task(start_autonomous_scheduler(app))
 
 
+async def _error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Global error handler — logs all unhandled exceptions cleanly."""
+    err = context.error
+    if isinstance(err, (NetworkError,)):
+        logger.warning("Network error (transient): %s", err)
+        return
+    if isinstance(err, (BadRequest, Forbidden)):
+        if "chat not found" in str(err).lower():
+            logger.error(
+                "Chat not found — TELEGRAM_PUBLISH_CHAT_ID in .env is wrong or bot is not "
+                "an admin in the channel. Send /chatid in your DM to get the correct ID."
+            )
+            if isinstance(update, Update) and update.effective_message:
+                try:
+                    await update.effective_message.reply_text(
+                        "⚠️  Channel not found!\n\n"
+                        "The bot cannot find your publish channel.\n\n"
+                        "Steps to fix:\n"
+                        "1. Send /chatid to get your channel's numeric ID\n"
+                        "2. Add this bot as Admin in your channel (Post Messages permission)\n"
+                        "3. Update .env:  TELEGRAM_PUBLISH_CHAT_ID=-100xxxxxxxxxx\n"
+                        "4. Restart the bot\n\n"
+                        "Until then, approved cards will be delivered here in this DM."
+                    )
+                except Exception:
+                    pass
+            return
+        logger.error("Telegram API error: %s", err)
+        return
+    logger.exception("Unhandled exception in update handler", exc_info=err)
+
+
 def create_application(token: str) -> Application:
     app = Application.builder().token(token).post_init(_post_init).build()
 
@@ -90,5 +124,7 @@ def create_application(token: str) -> Application:
     app.add_handler(CallbackQueryHandler(handle_draft_callback, pattern=r"^draft:"))
     app.add_handler(CallbackQueryHandler(handle_settings_callback, pattern=r"^settings:"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    app.add_error_handler(_error_handler)
 
     return app

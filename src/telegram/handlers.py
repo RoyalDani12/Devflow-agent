@@ -1,8 +1,4 @@
-"""
-Core Telegram command handlers for DevFlow Agent.
-Settings & message routing live in settings_handlers.py and message_handler.py.
-All < 250 lines.
-"""
+"""Core Telegram command handlers for DevFlow Agent."""
 import asyncio
 import logging
 import os
@@ -19,18 +15,31 @@ from src.workflows.daily_workflow import generate_daily_draft
 logger = logging.getLogger("DevFlowBot")
 pending_drafts: dict[int, str] = {}
 
+_PLACEHOLDER_VALUES = {"YOUR_CHANNEL_ID_HERE", "YOUR_USER_ID_HERE", "", "0"}
 
 def _publish_chat_id(review_chat_id: int) -> int | str:
-    configured_chat_id = os.getenv("TELEGRAM_PUBLISH_CHAT_ID")
-    if not configured_chat_id:
+    """Return the target publish chat ID.
+
+    Falls back to the admin review chat if TELEGRAM_PUBLISH_CHAT_ID is
+    unset, a placeholder, or invalid — so publish always works even
+    during initial setup.
+    """
+    configured = (os.getenv("TELEGRAM_PUBLISH_CHAT_ID") or "").strip()
+    if not configured or configured in _PLACEHOLDER_VALUES:
+        # No channel configured yet — publish back to the same DM chat
         return review_chat_id
-    configured = configured_chat_id.strip()
     if configured.startswith("@"):
-        return configured
+        return configured          # e.g. @mychannel
     try:
-        return int(configured)
+        return int(configured)     # numeric ID e.g. -1001234567890
     except ValueError:
-        return configured
+        logger.warning(
+            "TELEGRAM_PUBLISH_CHAT_ID='%s' is not a valid channel ID or @username. "
+            "Publishing to your review chat instead. "
+            "Fix: set it to a numeric channel ID or @username in .env",
+            configured,
+        )
+        return review_chat_id
 
 
 async def _execute_publish(context: ContextTypes.DEFAULT_TYPE, review_chat_id: int) -> bool:
@@ -48,7 +57,6 @@ async def _execute_publish(context: ContextTypes.DEFAULT_TYPE, review_chat_id: i
 
     del pending_drafts[review_chat_id]
     return True
-
 
 @require_admin
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -83,14 +91,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @require_admin
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🤖 DevFlow Owner Commands\n\n"
-        "/start     — Authenticate and register this chat\n"
-        "/draft     — Run research scan and prepare review cards\n"
-        "/approve   — Publish all pending cards to channel\n"
-        "/reject    — Discard all pending cards\n"
-        "/settings  — Open the in-chat control panel\n"
-        "/chatid    — View this chat ID\n\n"
-        "Or type a topic (e.g. 'AI hackathon') to search instantly."
+        "🤖 DevFlow Commands\n\n"
+        "/start    — Authenticate this chat\n"
+        "/draft    — Scan and prepare review cards\n"
+        "/approve  — Publish all pending cards\n"
+        "/reject   — Discard all pending cards\n"
+        "/settings — Open the control panel\n"
+        "/chatid   — Get IDs for setup\n\n"
+        "Type any topic (e.g. 'AI hackathon') to search."
     )
 
 
@@ -196,12 +204,20 @@ async def handle_card_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
     if action == "approve":
         publish_chat_id = _publish_chat_id(chat_id)
-        await publish_content_with_media(context.bot, publish_chat_id, card.text)
+        await publish_content_with_media(
+            context.bot, publish_chat_id, card.text,
+            review_chat_id=chat_id,   # fallback target if channel not found
+        )
         for url in re.findall(r"https?://[^\s\)>]+", card.text):
             record_published("Individual Card Broadcast", url, card.category, card.text[:400], str(publish_chat_id))
         pop_card(card_id)
         await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_text("✅ Published this card to the channel!")
+        label = (
+            "✅ Published to channel!"
+            if publish_chat_id != chat_id
+            else "✅ Delivered here (set TELEGRAM_PUBLISH_CHAT_ID in .env to publish to your channel)"
+        )
+        await query.message.reply_text(label)
 
     elif action == "reject":
         pop_card(card_id)

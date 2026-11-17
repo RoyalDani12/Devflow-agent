@@ -53,11 +53,12 @@ class SplitMessageTests(unittest.TestCase):
             self.assertEqual(_publish_chat_id(-100123), -100456)
 
     def test_publish_rejects_invalid_chat_id(self):
-        # Non-numeric values now supported as @username channel links
+        # Non-numeric, non-@ values fall back to review_chat_id with a warning
+        with patch.dict(os.environ, {"TELEGRAM_PUBLISH_CHAT_ID": "channel"}):
+            self.assertEqual(_publish_chat_id(-100123), -100123)
+        # @username values are returned directly
         with patch.dict(os.environ, {"TELEGRAM_PUBLISH_CHAT_ID": "@mychannel"}):
             self.assertEqual(_publish_chat_id(-100123), "@mychannel")
-        with patch.dict(os.environ, {"TELEGRAM_PUBLISH_CHAT_ID": "channel"}):
-            self.assertEqual(_publish_chat_id(-100123), "channel")
 
     def tearDown(self):
         pending_drafts.clear()

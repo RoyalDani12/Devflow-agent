@@ -1,5 +1,6 @@
 import logging
 from telegram import Bot, InlineKeyboardMarkup, LinkPreviewOptions
+from telegram.error import BadRequest, ChatMigrated, Forbidden
 
 from src.telegram.card_manager import create_card, get_card_review_keyboard
 from src.tools.media_service import (
@@ -10,8 +11,46 @@ from src.tools.media_service import (
 
 logger = logging.getLogger("DevFlowMediaSender")
 
+_CHAT_NOT_FOUND_HINT = (
+    "\n\n⚠️  Could not find the publish channel.\n\n"
+    "Fix: Send /chatid to get your channel ID, then add it to .env:\n"
+    "TELEGRAM_PUBLISH_CHAT_ID=-100xxxxxxxxxx\n\n"
+    "For now, messages are delivered here (your DM) instead."
+)
 
-async def publish_content_with_media(bot: Bot, target_chat_id: int, text: str | list[str]) -> bool:
+
+async def _send_with_fallback(bot: Bot, chat_id, text: str, **kwargs) -> bool:
+    """Try to send with link preview; on failure try plain text; on Chat not found raise clearly."""
+    try:
+        await bot.send_message(chat_id=chat_id, text=text, **kwargs)
+        return True
+    except (BadRequest, Forbidden, ChatMigrated) as exc:
+        err = str(exc).lower()
+        if "chat not found" in err or "not found" in err:
+            raise  # Let callers handle with helpful message
+        # Other errors (e.g. link preview failed) — retry plain
+        logger.warning("Publishing message failed, retrying plain: %s", exc)
+        try:
+            await bot.send_message(chat_id=chat_id, text=text)
+            return True
+        except Exception as exc2:
+            logger.error("Plain fallback also failed: %s", exc2)
+            return False
+    except Exception as exc:
+        logger.warning("Publishing card message failed, falling back: %s", exc)
+        try:
+            await bot.send_message(chat_id=chat_id, text=text)
+            return True
+        except Exception:
+            return False
+
+
+async def publish_content_with_media(
+    bot: Bot,
+    target_chat_id,
+    text: str | list[str],
+    review_chat_id=None,
+) -> bool:
     """Publish each card as its OWN distinct message to the Telegram channel."""
     from src.workflows.daily_workflow import split_draft_sections
 
@@ -29,14 +68,24 @@ async def publish_content_with_media(bot: Bot, target_chat_id: int, text: str | 
             else None
         )
         try:
-            await bot.send_message(
-                chat_id=target_chat_id,
-                text=clean_text,
+            await _send_with_fallback(
+                bot, target_chat_id, clean_text,
                 link_preview_options=link_options,
             )
-        except Exception as exc:
-            logger.warning("Publishing card message failed, falling back: %s", exc)
-            await bot.send_message(chat_id=target_chat_id, text=clean_text)
+        except (BadRequest, Forbidden) as exc:
+            if "chat not found" in str(exc).lower() or "not found" in str(exc).lower():
+                logger.error("Channel not found (ID: %s). Check TELEGRAM_PUBLISH_CHAT_ID in .env", target_chat_id)
+                # Deliver to review chat with setup hint if we know it
+                fallback = review_chat_id or target_chat_id
+                try:
+                    await bot.send_message(
+                        chat_id=fallback,
+                        text=clean_text + _CHAT_NOT_FOUND_HINT,
+                    )
+                except Exception:
+                    pass
+            else:
+                raise
     return True
 
 
@@ -67,8 +116,11 @@ async def send_draft_for_review(
             if card.image_url
             else None
         )
-        # Use card-specific keyboard unless caller specifically overrode it (e.g. tests)
-        card_markup = reply_markup if reply_markup and i == len(sections) - 1 else get_card_review_keyboard(card.card_id)
+        card_markup = (
+            reply_markup
+            if reply_markup and i == len(sections) - 1
+            else get_card_review_keyboard(card.card_id)
+        )
 
         try:
             await bot.send_message(
