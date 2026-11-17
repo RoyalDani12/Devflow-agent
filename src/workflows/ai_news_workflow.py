@@ -4,6 +4,7 @@ from typing import TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from src.agents.llm import generate_response
+from src.tools.media_service import strip_markdown_asterisks
 from src.tools.web_research import collect_page_evidence
 
 
@@ -12,29 +13,37 @@ class AINewsState(TypedDict, total=False):
     news: str
 
 
-AI_NEWS_PROMPT = f"""Create a Telegram-ready AI and technology news section for
-developers. The current date is {date.today().isoformat()}.
-Include no more than two recent, high-impact items. Do not limit coverage to AI models.
+AI_NEWS_PROMPT = f"""You are DevFlow's autonomous tech editor. Current date: {date.today().isoformat()}.
+Generate a high-impact AI and developer tech news briefing based ONLY on the verified evidence below.
+Present distinct verified tech breakthroughs (no more than two per company or subfield). Do not limit coverage to AI models.
 
-For each item, use only the verified page evidence supplied below:
-- Identify the category: model, product, research, robotics, chips or
-  infrastructure, developer tool, startup/funding, policy/safety, or major
-  industry adoption.
-- Include the publication date and a direct source URL.
-- Explain what changed, what is genuinely new or different, what it adds
-  compared with earlier approaches, and why developers should care.
-- Distinguish an original announcement, research result, product release,
-  funding event, policy change, and opinion article.
+CRITICAL FORMATTING & STYLE RULES:
+- Never output meta text like 'Telegram-ready...', 'Here is the draft...', or prompt instructions.
+- Separate each distinct news item with: ===ITEM===
+- Format each item with an authoritative journal-style heading and clean bullet points (•):
+
+===ITEM===
+📰 AI & TECH JOURNAL DISPATCH
+⚡ Headline: [Authoritative headline of what changed or launched]
+
+• Category: [Model / Infrastructure / Developer Tool / Robotics / Research]
+• Publication Date: [Date]
+• Key Breakthrough: [Explain what is genuinely new or different]
+• Why developers should care: [Explain why developers should care]
+• Direct Source: [Include a direct source URL]
+
+- Absolutely NO markdown tables (|---|---|), ASCII table borders, or asterisks (* or **).
+- ZERO ASTERISKS: Do NOT use bold asterisks (* or **) anywhere in the response. Use clean plain text and emojis only.
 - Never invent a story, date, or source.
-
-If the evidence is empty or insufficient, say that clearly. Do not include opportunities,
-developer tips, interview questions, or claims that anything was published."""
+- You do NOT have a web browser or tools. Do not emit tool calls like browser.open or browser.search.
+If evidence is insufficient, state: "⚡ No verified breaking AI updates today."
+"""
 
 
 def create_ai_news(state: AINewsState) -> AINewsState:
-    """Generate a separate, reviewable AI news section."""
+    """Generate a separate, reviewable AI news section without asterisks."""
     prompt = f"{AI_NEWS_PROMPT}\n\nVERIFIED PAGE EVIDENCE:\n{state.get('evidence', '')}"
-    return {"news": generate_response(prompt)}
+    return {"news": strip_markdown_asterisks(generate_response(prompt))}
 
 
 def research_ai_news(state: AINewsState) -> AINewsState:

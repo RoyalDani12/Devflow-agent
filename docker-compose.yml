@@ -1,0 +1,15 @@
+services:
+  devflow-agent:
+    build: .
+    container_name: devflow-agent
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - devflow_data:/app/data
+    environment:
+      - DB_PATH=/app/data/devflow_memory.db
+
+volumes:
+  devflow_data:
+    driver: local

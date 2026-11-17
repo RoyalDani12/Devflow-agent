@@ -4,6 +4,7 @@ from typing import TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from src.agents.llm import generate_response
+from src.tools.media_service import strip_markdown_asterisks
 from src.tools.web_research import collect_page_evidence
 
 
@@ -13,48 +14,42 @@ class OpportunitiesState(TypedDict, total=False):
     opportunities: str
 
 
-OPPORTUNITIES_PROMPT = f"""Create a Telegram-ready opportunities section for
-developers. The current date is {date.today().isoformat()}. Include up to three
-different hackathons, fellowships, scholarships, internships, or jobs. Do not
-invent opportunities if fewer can be verified.
+OPPORTUNITIES_PROMPT = f"""You are DevFlow's opportunity research scout. Current date: {date.today().isoformat()}.
+Present verified developer opportunities (up to three or more high-impact hackathons, fellowships, scholarships, grants, internships).
 
-Use only the verified page evidence supplied below. For every opportunity:
-- Confirm it is suitable for freshers, students, or early-career applicants.
-- State whether no prior professional experience is required, or explain the
-  minimum experience if experience is required.
-- Check whether applicants from Ethiopia are eligible.
-- Search globally: the opportunity may be hosted anywhere in the world. Do not
-  require it to be located in Ethiopia.
-- Include eligibility and requirements to enroll or apply.
-- Include the exact deadline and timezone when available.
-- Include a direct official source or application URL.
-- State the deadline status as of {date.today().isoformat()}.
+CRITICAL FORMATTING & STYLE RULES:
+- Never output meta text like 'Telegram-ready...', 'Here are opportunities...', or prompt instructions.
+- Separate each distinct opportunity with: ===ITEM===
+- Format each opportunity with an authoritative journal-style heading and clean bullet points (•):
 
-Verification rules:
-- Check the official page for every opportunity before including it.
-- Search globally across organizations, countries, and regions; verify
-  nationality and location restrictions on the official page.
-- Compare each deadline date and timezone with today's date.
-- Exclude every past deadline, old search result, cached result, and closed
-  rolling application.
-- Include future-deadline opportunities only when the official page confirms
-  applications are open.
-- Include an Ethiopia-eligible opportunity when one is verified.
-- Treat missing, unclear, or conflicting deadlines as unverified and exclude
-  them unless the official source clearly confirms applications are open.
-- Never invent requirements, eligibility, deadlines, URLs, or sources.
+===ITEM===
+🎓 GLOBAL OPPORTUNITY DISPATCH | ETHIOPIA ELIGIBLE
+🌟 Program: [Program or Hackathon Name]
 
-If the evidence is empty or no opportunity can be verified, say so clearly. Do not include AI news,
-developer tips, interview questions, or claims that anything was published."""
+• Host Organization: [Organization / Platform]
+• Eligibility: [Suitable for students, freshers, or early-career applicants; state whether applicants from Ethiopia are eligible]
+• Funding & Awards: [Fully Funded / Cash Prize / Stipend / Free]
+• Deadline Status: [Month Day, Year - Status as of today]
+• Application Portal: [Direct Application URL]
+• Program Overview: [1-2 sentences on what developers gain]
+
+Verification Rules:
+- Search globally: the opportunity may be hosted anywhere in the world.
+- Compare each deadline date and timezone with today's date ({date.today().isoformat()}).
+- Exclude every past deadline, expired opportunity, and closed rolling call.
+- Include future-deadline opportunities only when confirmed open.
+- Never invent deadlines, requirements, or links.
+- Absolutely NO markdown tables (|---|---|), ASCII table borders, or asterisks (* or **).
+- ZERO ASTERISKS: Do NOT use bold asterisks (* or **) anywhere in the response. Use clean plain text and emojis only.
+- You do NOT have a web browser or tools. Do not emit tool calls like browser.open or browser.search.
+If evidence is insufficient, state: "🎯 No verified active opportunities found today."
+"""
 
 
 def create_opportunities(state: OpportunitiesState) -> OpportunitiesState:
-    """Generate a separate, reviewable opportunities section."""
-    prompt = (
-        f"{OPPORTUNITIES_PROMPT}\n\nVERIFIED PAGE EVIDENCE:\n"
-        f"{state.get('evidence', '')}"
-    )
-    return {"opportunities": generate_response(prompt)}
+    """Generate a separate, reviewable opportunities section without asterisks."""
+    prompt = f"{OPPORTUNITIES_PROMPT}\n\nVERIFIED PAGE EVIDENCE:\n{state.get('evidence', '')}"
+    return {"opportunities": strip_markdown_asterisks(generate_response(prompt))}
 
 
 def research_opportunities(state: OpportunitiesState) -> OpportunitiesState:

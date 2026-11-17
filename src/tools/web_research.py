@@ -1,30 +1,25 @@
-import base64
-from dataclasses import dataclass
 from html import unescape
 from html.parser import HTMLParser
-import json
 import os
-import re
 from urllib.parse import parse_qs, unquote, urlencode, urlparse
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 
-
-USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/120.0.0.0 Safari/537.36"
+from src.database.memory import get_seen_opportunity_urls
+from src.tools.media_service import extract_og_image_from_html, register_url_image
+from src.tools.search_providers import (
+    DEFAULT_TIMEOUT_SECONDS,
+    SearchResult,
+    USER_AGENT,
+    fetch_devpost_hackathons,
+    fetch_ethiopia_scholarships,
+    fetch_opportunitydesk,
+    fetch_techcrunch_ai,
+    search_tavily,
 )
-DEFAULT_TIMEOUT_SECONDS = 8
-MAX_PAGE_CHARS = 3_500
-MAX_EVIDENCE_CHARS = 12_000
 
-
-@dataclass(frozen=True)
-class SearchResult:
-    title: str
-    url: str
-    snippet: str
+MAX_PAGE_CHARS = 1_500
+MAX_EVIDENCE_CHARS = 5_000
 
 
 class _SearchResultParser(HTMLParser):
@@ -58,9 +53,7 @@ class _SearchResultParser(HTMLParser):
         if tag == "a" and self._in_title:
             url = _unwrap_search_url(self._href)
             if self._title and url:
-                self.results.append(
-                    SearchResult(self._title.strip(), url, self._snippet.strip())
-                )
+                self.results.append(SearchResult(self._title.strip(), url, self._snippet.strip()))
             self._in_title = False
         if self._in_snippet:
             self._in_snippet = False
@@ -76,150 +69,11 @@ def _unwrap_search_url(url: str) -> str:
     return url if parsed.scheme in {"http", "https"} else ""
 
 
-def _unwrap_bing_url(url: str) -> str:
-    decoded_url = unescape(url)
-    match = re.search(r"[?&]u=a1([a-zA-Z0-9_\-]+)", decoded_url)
-    if match:
-        token = match.group(1)
-        padded = token + "=" * (-len(token) % 4)
-        try:
-            return base64.urlsafe_b64decode(padded).decode("utf-8", errors="ignore")
-        except Exception:
-            pass
-    return decoded_url
-
-
-def _fetch_devpost_hackathons(limit: int = 5) -> list[SearchResult]:
-    """Fetch live hackathons from the official Devpost API."""
-    url = (
-        "https://devpost.com/api/hackathons?"
-        "challenge_type[]=online&status[]=upcoming&status[]=open"
-    )
-    results = []
-    try:
-        req = Request(url, headers={"User-Agent": USER_AGENT})
-        with urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
-            data = json.loads(resp.read().decode("utf-8", errors="replace"))
-        for h in data.get("hackathons", [])[:limit]:
-            title = f"{h.get('title')} ({h.get('submission_period_dates')})"
-            url_link = h.get("url") or ""
-            prize = re.sub(r"<[^>]+>", "", str(h.get("prize_amount", ""))).strip()
-            themes = ", ".join(t.get("name", "") for t in h.get("themes", []))
-            snippet = (
-                f"Devpost Online Hackathon. Prize: {prize}. Themes: {themes}. "
-                f"Status: {h.get('open_state')}. Time left: {h.get('time_left_to_submission')}."
-            )
-            if title and url_link:
-                results.append(SearchResult(title, url_link, snippet))
-    except (OSError, ValueError):
-        pass
-    return results
-
-
-def _fetch_ethiopia_scholarships(limit: int = 5) -> list[SearchResult]:
-    """Fetch active scholarships and fellowships open to Ethiopians from scholarship.et."""
-    results = []
-    seen = set()
-    try:
-        req = Request("https://scholarship.et/scholarships", headers={"User-Agent": USER_AGENT})
-        with urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
-            html = resp.read().decode("utf-8", errors="replace")
-        links = re.findall(
-            r'href=[\"\'](/scholarships/([^\"\']+))[\"\'][^>]*>(.*?)</a>',
-            html,
-            re.DOTALL,
-        )
-        for path, slug, text in links:
-            full_url = f"https://scholarship.et{path}"
-            clean_title = re.sub(r"<[^>]+>", "", text).strip()
-            slug_title = slug.rsplit("-", 1)[0].replace("-", " ").title()
-            title = clean_title if clean_title and len(clean_title) > 6 else slug_title
-            if full_url not in seen and len(title) > 6:
-                seen.add(full_url)
-                snippet = (
-                    f"Scholarship / fellowship opportunity open to Ethiopian applicants: {title}. "
-                    "Verified on scholarship.et."
-                )
-                results.append(SearchResult(title, full_url, snippet))
-                if len(results) >= limit:
-                    break
-    except (OSError, ValueError):
-        pass
-    return results
-
-
-def _fetch_opportunitydesk(limit: int = 5) -> list[SearchResult]:
-    """Fetch fresh international fellowships and scholarships from Opportunity Desk."""
-    results = []
-    try:
-        req = Request("https://opportunitydesk.org/feed/", headers={"User-Agent": USER_AGENT})
-        with urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
-            root = ElementTree.fromstring(resp.read())
-        for it in root.findall(".//item")[:limit]:
-            title = it.findtext("title", default="").strip()
-            url_link = it.findtext("link", default="").strip()
-            raw_desc = it.findtext("description", default="")
-            snippet = re.sub(r"<[^>]+>", "", raw_desc).strip()
-            if title and url_link:
-                results.append(SearchResult(title, url_link, snippet))
-    except (OSError, ValueError, ElementTree.ParseError):
-        pass
-    return results
-
-
-def _fetch_techcrunch_ai(limit: int = 5) -> list[SearchResult]:
-    """Fetch latest AI product releases and research from TechCrunch AI feed."""
-    results = []
-    try:
-        req = Request(
-            "https://techcrunch.com/category/artificial-intelligence/feed/",
-            headers={"User-Agent": USER_AGENT},
-        )
-        with urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
-            root = ElementTree.fromstring(resp.read())
-        for it in root.findall(".//item")[:limit]:
-            title = it.findtext("title", default="").strip()
-            url_link = it.findtext("link", default="").strip()
-            raw_desc = it.findtext("description", default="")
-            snippet = re.sub(r"<[^>]+>", "", raw_desc).strip()
-            if title and url_link:
-                results.append(SearchResult(title, url_link, snippet))
-    except (OSError, ValueError, ElementTree.ParseError):
-        pass
-    return results
-
-
-def _search_tavily(query: str, api_key: str, limit: int = 5) -> list[SearchResult]:
-    """Search using Tavily API if configured."""
-    results = []
-    try:
-        payload = json.dumps({"query": query, "max_results": limit}).encode("utf-8")
-        req = Request(
-            "https://api.tavily.com/search",
-            data=payload,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}",
-            },
-        )
-        with urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
-            data = json.loads(resp.read().decode("utf-8", errors="replace"))
-        for item in data.get("results", []):
-            title = item.get("title", "")
-            url_link = item.get("url", "")
-            snippet = item.get("content", "")
-            if title and url_link:
-                results.append(SearchResult(title, url_link, snippet))
-    except (OSError, ValueError):
-        pass
-    return results
-
-
 def search_web(query: str, limit: int = 5) -> list[SearchResult]:
     """Search web indexes, specialized APIs, and feeds for current information."""
     tavily_key = os.getenv("TAVILY_API_KEY")
     if tavily_key:
-        api_results = _search_tavily(query, tavily_key, limit)
+        api_results = search_tavily(query, tavily_key, limit)
         if api_results:
             return api_results[:limit]
 
@@ -234,72 +88,33 @@ def search_web(query: str, limit: int = 5) -> list[SearchResult]:
                 combined_results.append(item)
 
     is_hackathon = any(k in lower_query for k in ["hackathon", "hackatoon", "hack", "contest"])
-    is_opp = any(
-        k in lower_query
-        for k in [
-            "opportunity",
-            "oppent",
-            "fellowship",
-            "follewship",
-            "scholarship",
-            "schollar",
-            "internship",
-            "grant",
-            "ethiopia",
-        ]
-    )
+    is_opp = any(k in lower_query for k in ["opp", "fellow", "foll", "scholar", "intern", "grant", "ethiop"])
     is_news = any(k in lower_query for k in ["ai", "news", "model", "release", "tech"])
 
     if is_hackathon:
-        add_results(_fetch_devpost_hackathons(limit))
-
+        add_results(fetch_devpost_hackathons(limit))
     if is_opp:
-        add_results(_fetch_ethiopia_scholarships(limit))
-        add_results(_fetch_opportunitydesk(limit))
-
+        add_results(fetch_ethiopia_scholarships(limit))
+        add_results(fetch_opportunitydesk(limit))
     if is_news and not is_opp:
-        add_results(_fetch_techcrunch_ai(limit))
+        add_results(fetch_techcrunch_ai(limit))
 
     if len(combined_results) >= limit:
         return combined_results[:limit]
 
-    # Try DuckDuckGo
+    # DuckDuckGo fallback
     params = urlencode({"q": query, "kl": "us-en"})
-    for endpoint in (
-        f"https://lite.duckduckgo.com/lite/?{params}",
-        f"https://html.duckduckgo.com/html/?{params}",
-    ):
+    for endpoint in (f"https://lite.duckduckgo.com/lite/?{params}", f"https://html.duckduckgo.com/html/?{params}"):
         try:
-            request = Request(endpoint, headers={"User-Agent": USER_AGENT})
-            with urlopen(request, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
+            req = Request(endpoint, headers={"User-Agent": USER_AGENT})
+            with urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
                 parser = _SearchResultParser()
-                parser.feed(response.read().decode("utf-8", errors="replace"))
+                parser.feed(resp.read().decode("utf-8", errors="replace"))
             if parser.results:
                 add_results(parser.results)
                 break
         except OSError:
             continue
-
-    # Try Google News RSS
-    if len(combined_results) < limit:
-        try:
-            rss_request = Request(
-                "https://news.google.com/rss/search?"
-                + urlencode({"q": query, "hl": "en-US", "gl": "US", "ceid": "US:en"}),
-                headers={"User-Agent": USER_AGENT},
-            )
-            with urlopen(rss_request, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
-                root = ElementTree.fromstring(response.read())
-            rss_items = []
-            for item in root.findall(".//item"):
-                title = item.findtext("title", default="").strip()
-                url_link = item.findtext("link", default="").strip()
-                snippet = item.findtext("description", default="").strip()
-                if title and url_link:
-                    rss_items.append(SearchResult(title, url_link, snippet))
-            add_results(rss_items)
-        except (OSError, ElementTree.ParseError):
-            pass
 
     return combined_results[:limit]
 
@@ -331,20 +146,20 @@ def fetch_page(url: str) -> str:
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError(f"Unsupported page URL: {url}")
 
-    request = Request(url, headers={"User-Agent": USER_AGENT})
-    with urlopen(request, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
-        html = response.read().decode("utf-8", errors="replace")
+    req = Request(url, headers={"User-Agent": USER_AGENT})
+    with urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
+        html = resp.read().decode("utf-8", errors="replace")
+
+    og_img = extract_og_image_from_html(html)
+    if og_img:
+        register_url_image(url, og_img)
 
     parser = _TextParser()
     parser.feed(html)
     return " ".join(parser.text)[:MAX_PAGE_CHARS]
 
 
-def collect_page_evidence(
-    queries: list[str],
-    result_limit: int = 4,
-    page_limit: int = 6,
-) -> str:
+def collect_page_evidence(queries: list[str], result_limit: int = 4, page_limit: int = 6) -> str:
     """Search queries and fetch candidate pages as labelled evidence."""
     results: list[SearchResult] = []
     seen_urls: set[str] = set()
@@ -354,8 +169,13 @@ def collect_page_evidence(
                 seen_urls.add(result.url)
                 results.append(result)
 
+    db_seen = get_seen_opportunity_urls()
+    unseen_items = [r for r in results if r.url not in db_seen]
+    seen_items = [r for r in results if r.url in db_seen]
+    ordered_results = (unseen_items + seen_items)[:page_limit]
+
     evidence: list[str] = []
-    for result in results[:page_limit]:
+    for result in ordered_results:
         page_text = ""
         try:
             page_text = fetch_page(result.url)
@@ -364,13 +184,13 @@ def collect_page_evidence(
 
         if not page_text and result.snippet:
             page_text = result.snippet
-
         if not page_text:
             continue
 
-        evidence.append(
-            f"SOURCE URL: {result.url}\n"
-            f"SEARCH TITLE: {result.title}\n"
-            f"PAGE CONTENT: {page_text}"
-        )
+        if getattr(result, "image_url", None):
+            register_url_image(result.url, result.image_url)
+            img_line = f"\nIMAGE URL: {result.image_url}"
+        else:
+            img_line = ""
+        evidence.append(f"SOURCE URL: {result.url}{img_line}\nSEARCH TITLE: {result.title}\nPAGE CONTENT: {page_text}")
     return "\n\n--- CANDIDATE SOURCE ---\n\n".join(evidence)[:MAX_EVIDENCE_CHARS]

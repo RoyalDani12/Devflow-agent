@@ -6,12 +6,8 @@ import re
 from telegram import Bot
 
 from src.database.memory import record_opportunity, record_published
-from src.telegram.bot import (
-    _publish_chat_id,
-    get_draft_review_keyboard,
-    pending_drafts,
-    split_message,
-)
+from src.telegram.bot import _publish_chat_id, pending_drafts, split_message
+from src.telegram.media_sender import publish_content_with_media, send_draft_for_review
 from src.workflows.daily_workflow import generate_daily_draft
 
 logger = logging.getLogger("DevFlowScheduler")
@@ -27,21 +23,27 @@ def set_active_admin_chat(chat_id: int) -> None:
 
 
 def get_active_admin_chat() -> int | None:
-    """Get the active review chat ID from env or dynamic registration."""
+    """Get the active review chat ID (owner's private DM). Never returns a channel."""
     global active_admin_chat_id
-    if active_admin_chat_id:
+    if active_admin_chat_id and active_admin_chat_id > 0:
         return active_admin_chat_id
-    env_id = os.getenv("TELEGRAM_REVIEW_CHAT_ID") or os.getenv("TELEGRAM_PUBLISH_CHAT_ID")
+    from src.telegram.auth import get_owner_user_id
+    owner_id = get_owner_user_id()
+    if owner_id and owner_id > 0:
+        return owner_id
+    env_id = os.getenv("TELEGRAM_REVIEW_CHAT_ID") or os.getenv("TELEGRAM_ADMIN_ID")
     if env_id:
         try:
-            return int(env_id)
+            val = int(env_id)
+            if val > 0:
+                return val
         except ValueError:
             pass
     return None
 
 
 async def run_autonomous_scan_cycle(bot: Bot | None = None, review_chat_id: int | None = None) -> bool:
-    """Execute one autonomous discovery, verification, and notification cycle."""
+    """Execute one autonomous discovery, verification, and notification cycle with media."""
     global latest_cached_briefing
     logger.info("🤖 Autonomous Agent: Starting research scan cycle...")
 
@@ -77,8 +79,7 @@ async def run_autonomous_scan_cycle(bot: Bot | None = None, review_chat_id: int 
         if auto_publish:
             publish_chat_id = _publish_chat_id(target_chat)
             logger.info("🤖 Autonomous Agent: AUTO_PUBLISH=true. Broadcasting to %s", publish_chat_id)
-            for chunk in chunks:
-                await bot.send_message(chat_id=publish_chat_id, text=chunk)
+            await publish_content_with_media(bot, publish_chat_id, draft)
 
             for url in urls:
                 record_published(
@@ -90,23 +91,14 @@ async def run_autonomous_scan_cycle(bot: Bot | None = None, review_chat_id: int 
                 )
             return True
 
-        # Send proactive briefing with interactive review buttons to admin
-        pending_drafts[target_chat] = "\n\n".join(chunks)
-        await bot.send_message(
-            chat_id=target_chat,
-            text="🤖 **DevFlow Autonomous Briefing Ready for Review**\n\n"
-            "I completed today's autonomous research scan. Review the draft below:",
-            parse_mode="Markdown",
+        # Send proactive briefing with photo banner & interactive review buttons to admin
+        pending_drafts[target_chat] = draft
+        await send_draft_for_review(
+            bot,
+            target_chat,
+            draft,
+            header="🤖 DevFlow Autonomous Briefing Ready for Review\n\nI completed today's autonomous research scan. Review the draft below:",
         )
-        for i, chunk in enumerate(chunks):
-            if i == len(chunks) - 1:
-                await bot.send_message(
-                    chat_id=target_chat,
-                    text=chunk,
-                    reply_markup=get_draft_review_keyboard(),
-                )
-            else:
-                await bot.send_message(chat_id=target_chat, text=chunk)
 
         logger.info("🤖 Autonomous Agent: Briefing successfully delivered to admin chat %s", target_chat)
         return True
@@ -118,7 +110,6 @@ async def run_autonomous_scan_cycle(bot: Bot | None = None, review_chat_id: int 
 
 async def start_autonomous_scheduler(app, interval_seconds: int = DEFAULT_INTERVAL_SECONDS):
     """Background task: runs an immediate scan cycle on launch, then repeats on interval."""
-    # Small initial pause for Telegram connection to establish
     await asyncio.sleep(2)
     logger.info("🚀 Launching initial autonomous research cycle on agent startup...")
     await run_autonomous_scan_cycle(app.bot)

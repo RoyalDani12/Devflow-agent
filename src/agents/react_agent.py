@@ -13,7 +13,7 @@ Core Operating Principles:
 2. Avoid Repetition: Use `check_channel_memory_tool` to see what has already been published recently so you do not repeat duplicate opportunities or stories.
 3. Deep Research & Verification: When candidate opportunities appear, call `fetch_page_content_tool` to inspect page content for eligibility and deadlines. If a page is protected or fails to fetch, do NOT retry or attempt proxy URLs; use the verified search snippet information directly.
 4. Absolute Grounding: Never hallucinate requirements, organizations, links, or dates. Rely strictly on data observed from tools.
-5. Telegram-Ready Output: Deliver clean, structured markdown tables summarizing Opportunity Name, Eligibility, Deadline, Application instructions, and Direct Source Link.
+5. Mobile Telegram Formatting: NEVER use markdown tables (|---|---|) or ASCII grids (which break on mobile Telegram). Deliver clean Telegram cards using emoji bullet points (🌟 Title, 🏢 Host, 🎓 Eligibility, 💰 Funding/Prize, 📅 Deadline, 🔗 Apply Link, 💡 Overview). Never output multiple consecutive asterisks (***).
 """
 
 
