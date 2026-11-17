@@ -18,27 +18,22 @@ pending_drafts: dict[int, str] = {}
 _PLACEHOLDER_VALUES = {"YOUR_CHANNEL_ID_HERE", "YOUR_USER_ID_HERE", "", "0"}
 
 def _publish_chat_id(review_chat_id: int) -> int | str:
-    """Return the target publish chat ID.
-
-    Falls back to the admin review chat if TELEGRAM_PUBLISH_CHAT_ID is
-    unset, a placeholder, or invalid — so publish always works even
-    during initial setup.
-    """
+    """Return the target publish chat ID, auto-normalizing web channel IDs."""
     configured = (os.getenv("TELEGRAM_PUBLISH_CHAT_ID") or "").strip()
     if not configured or configured in _PLACEHOLDER_VALUES:
-        # No channel configured yet — publish back to the same DM chat
         return review_chat_id
     if configured.startswith("@"):
-        return configured          # e.g. @mychannel
+        return configured
     try:
-        return int(configured)     # numeric ID e.g. -1001234567890
+        num = int(configured)
+        if str(num).startswith("-100"):
+            return num
+        if num < 0:
+            return int(f"-100{abs(num)}")
+        if num > 100000000:
+            return int(f"-100{num}")
+        return num
     except ValueError:
-        logger.warning(
-            "TELEGRAM_PUBLISH_CHAT_ID='%s' is not a valid channel ID or @username. "
-            "Publishing to your review chat instead. "
-            "Fix: set it to a numeric channel ID or @username in .env",
-            configured,
-        )
         return review_chat_id
 
 
