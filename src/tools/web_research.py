@@ -17,8 +17,8 @@ from src.tools.search_providers import (
     search_tavily,
 )
 
-MAX_PAGE_CHARS = 3_500
-MAX_EVIDENCE_CHARS = 12_000
+MAX_PAGE_CHARS = 1_500
+MAX_EVIDENCE_CHARS = 5_000
 
 
 class _SearchResultParser(HTMLParser):
