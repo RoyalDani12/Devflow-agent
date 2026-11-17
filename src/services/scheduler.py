@@ -23,14 +23,20 @@ def set_active_admin_chat(chat_id: int) -> None:
 
 
 def get_active_admin_chat() -> int | None:
-    """Get the active review chat ID from env or dynamic registration."""
+    """Get the active review chat ID (owner's private DM). Never returns a channel."""
     global active_admin_chat_id
-    if active_admin_chat_id:
+    if active_admin_chat_id and active_admin_chat_id > 0:
         return active_admin_chat_id
-    env_id = os.getenv("TELEGRAM_REVIEW_CHAT_ID") or os.getenv("TELEGRAM_PUBLISH_CHAT_ID")
+    from src.telegram.auth import get_owner_user_id
+    owner_id = get_owner_user_id()
+    if owner_id and owner_id > 0:
+        return owner_id
+    env_id = os.getenv("TELEGRAM_REVIEW_CHAT_ID") or os.getenv("TELEGRAM_ADMIN_ID")
     if env_id:
         try:
-            return int(env_id)
+            val = int(env_id)
+            if val > 0:
+                return val
         except ValueError:
             pass
     return None
