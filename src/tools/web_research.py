@@ -6,6 +6,7 @@ from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 
 from src.database.memory import get_seen_opportunity_urls
+from src.tools.media_service import extract_og_image_from_html, register_url_image
 from src.tools.search_providers import (
     DEFAULT_TIMEOUT_SECONDS,
     SearchResult,
@@ -149,7 +150,6 @@ def fetch_page(url: str) -> str:
     with urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
         html = resp.read().decode("utf-8", errors="replace")
 
-    from src.tools.media_service import extract_og_image_from_html, register_url_image
     og_img = extract_og_image_from_html(html)
     if og_img:
         register_url_image(url, og_img)
