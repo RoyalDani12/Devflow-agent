@@ -20,14 +20,17 @@ logger = logging.getLogger("DevFlowBot")
 pending_drafts: dict[int, str] = {}
 
 
-def _publish_chat_id(review_chat_id: int) -> int:
+def _publish_chat_id(review_chat_id: int) -> int | str:
     configured_chat_id = os.getenv("TELEGRAM_PUBLISH_CHAT_ID")
     if not configured_chat_id:
         return review_chat_id
+    configured = configured_chat_id.strip()
+    if configured.startswith("@"):
+        return configured
     try:
-        return int(configured_chat_id)
-    except ValueError as exc:
-        raise ValueError("TELEGRAM_PUBLISH_CHAT_ID must be a numeric chat ID") from exc
+        return int(configured)
+    except ValueError:
+        return configured
 
 
 async def _execute_publish(context: ContextTypes.DEFAULT_TYPE, review_chat_id: int) -> bool:
@@ -93,10 +96,26 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @require_admin
 async def chat_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        f"Your User ID: `{update.effective_user.id}`\nChat ID: `{update.effective_chat.id}`",
-        parse_mode="Markdown",
+    msg = update.effective_message
+    response = (
+        f"👤 Your User ID: `{update.effective_user.id}`\n"
+        f"💬 Current Chat ID: `{update.effective_chat.id}`\n"
     )
+    forward_chat = getattr(msg, "forward_from_chat", None)
+    if forward_chat:
+        response += (
+            f"\n📢 Forwarded Channel: *{forward_chat.title}*\n"
+            f"🆔 Channel ID: `{forward_chat.id}`\n\n"
+            f"👉 Put this in your `.env`:\n`TELEGRAM_PUBLISH_CHAT_ID={forward_chat.id}`"
+        )
+    else:
+        response += (
+            "\n💡 *How to link your Channel:*\n"
+            "1. Add this bot as an **Administrator** in your channel.\n"
+            "2. Forward any post from your channel to this chat.\n"
+            "3. I'll automatically give you the Channel ID!"
+        )
+    await update.message.reply_text(response, parse_mode="Markdown")
 
 
 @require_admin

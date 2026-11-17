@@ -36,6 +36,7 @@ class AuthTests(unittest.IsolatedAsyncioTestCase):
         decorated = require_admin(dummy_func)
 
         update = MagicMock()
+        update.channel_post = None          # not a channel post
         update.effective_user.id = 99999
         update.message.reply_text = AsyncMock()
 
